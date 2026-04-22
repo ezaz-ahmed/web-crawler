@@ -50,12 +50,17 @@ export async function crawlSingleUrl(
   }
 
   // Build page result
+  const trimmedContent = fetchResult.content.trim();
+  const wordCount = trimmedContent.length
+    ? trimmedContent.split(/\s+/).length
+    : 0;
+
   const pageResult: PageResult = {
     url,
     title: fetchResult.title,
     content: fetchResult.content,
     links: fetchResult.links,
-    wordCount: fetchResult.content.split(/\s+/).length,
+    wordCount,
     fetchedAt: new Date(),
   };
 

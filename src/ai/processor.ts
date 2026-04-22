@@ -39,6 +39,10 @@ export async function convertToMarkdown(
   // Truncate content if needed
   const truncatedContent = truncateContent(content, MAX_CONTENT_LENGTH);
 
+  if (!truncatedContent.trim()) {
+    throw new Error('No extractable page content found for AI conversion');
+  }
+
   // Prepare messages
   const systemPrompt = mergeInstructions(instructions);
   const userMessage = createUserMessage(title, truncatedContent, url);
@@ -55,8 +59,6 @@ export async function convertToMarkdown(
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage },
         ],
-        temperature: 0.3, // Lower temperature for more consistent output
-        max_tokens: 4000,
       });
 
       const markdown = completion.choices[0]?.message?.content;

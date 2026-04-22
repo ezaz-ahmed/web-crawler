@@ -89,12 +89,5 @@ export const config: AppConfig = {
 
 // Log configuration (without sensitive values)
 export function logConfig() {
-  console.log('Configuration loaded:');
-  console.log(`- Environment: ${config.nodeEnv}`);
-  console.log(`- Port: ${config.port}`);
-  console.log(`- Redis URL: ${config.redis.url}`);
-  console.log(`- OpenAI Model: ${config.openai.model}`);
-  console.log(`- R2 Bucket: ${config.r2.bucketName}`);
-  console.log(`- API Keys configured: ${config.auth.allowedApiKeys.length}`);
-  console.log(`- User Agent: ${config.crawler.userAgent}`);
+  console.log('✔️ Configuration loaded:');
 }

@@ -15,6 +15,7 @@ import type {
   MultiPageResult,
   Priority,
 } from './types.js';
+import { uploadResult } from './storage/r2.js';
 
 /**
  * Process a single URL crawl job
@@ -94,7 +95,7 @@ async function processWebsiteJob(jobData: WebsiteJobData): Promise<void> {
 
   // Upload to R2
   jobStateManager.updateJobProgress(jobData.jobId, 90);
-  const uploadResult = await uploadResult(jobData.jobId, pages, markdowns);
+  const uploadedFile = await uploadResult(jobData.jobId, pages, markdowns);
 
   // Create result
   const result: MultiPageResult = {
@@ -105,8 +106,8 @@ async function processWebsiteJob(jobData: WebsiteJobData): Promise<void> {
       title: page.title,
       markdownPath: `pages/${i}.md`,
     })),
-    downloadUrl: uploadResult!.url, // uploadResult won't be null for multiple pages
-    expiresAt: uploadResult!.expiresAt,
+    downloadUrl: uploadedFile!.url, // uploadedFile won't be null for multiple pages
+    expiresAt: uploadedFile!.expiresAt,
   };
 
   // Store result

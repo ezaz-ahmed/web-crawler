@@ -40,6 +40,7 @@ const urlCrawlSchema = z.object({
   instructions: z.string().optional(),
   includePatterns: z.array(z.string()).optional(),
   excludePatterns: z.array(z.string()).optional(),
+  callbackUrl: z.string().url().optional(),
 });
 
 const websiteCrawlSchema = urlCrawlSchema.extend({
@@ -53,6 +54,7 @@ const sitemapCrawlSchema = z.object({
   instructions: z.string().optional(),
   includePatterns: z.array(z.string()).optional(),
   excludePatterns: z.array(z.string()).optional(),
+  callbackUrl: z.string().url().optional(),
 });
 
 // ============================================================================
@@ -127,6 +129,7 @@ app.post<{ Body: UrlCrawlRequest }>(
           instructions: body.instructions,
           includePatterns: body.includePatterns,
           excludePatterns: body.excludePatterns,
+          callbackUrl: body.callbackUrl,
           createdAt: new Date(),
         },
         body.priority as Priority,
@@ -177,6 +180,7 @@ app.post<{ Body: WebsiteCrawlRequest }>(
           instructions: body.instructions,
           includePatterns: body.includePatterns,
           excludePatterns: body.excludePatterns,
+          callbackUrl: body.callbackUrl,
           createdAt: new Date(),
         },
         body.priority as Priority,
@@ -225,6 +229,7 @@ app.post<{ Body: SitemapCrawlRequest }>(
           instructions: body.instructions,
           includePatterns: body.includePatterns,
           excludePatterns: body.excludePatterns,
+          callbackUrl: body.callbackUrl,
           createdAt: new Date(),
         },
         body.priority as Priority,

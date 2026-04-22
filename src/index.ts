@@ -1,13 +1,9 @@
 #!/usr/bin/env node
 
-import { config, logConfig } from './config.js';
+import { logConfig } from './config.js';
 import { startServer, stopServer } from './server.js';
 import { startWorkers, stopWorkers } from './worker.js';
 import { closeQueues } from './queue.js';
-
-console.log('╔════════════════════════════════════════╗');
-console.log('║   Web Crawler API with AI Processing   ║');
-console.log('╚════════════════════════════════════════╝\n');
 
 // Log configuration
 logConfig();
@@ -67,13 +63,10 @@ async function start() {
     // Then start the API server
     await startServer();
 
-    console.log('\n✓ Application started successfully!');
-    console.log(`\nAPI Endpoints:`);
-    console.log(`  - POST http://localhost:${config.port}/crawl/url`);
-    console.log(`  - POST http://localhost:${config.port}/crawl/website`);
-    console.log(`  - POST http://localhost:${config.port}/crawl/sitemap`);
-    console.log(`  - GET  http://localhost:${config.port}/crawl/status/:jobId`);
-    console.log(`  - GET  http://localhost:${config.port}/health`);
+    console.log('╔════════════════════════════════════════╗');
+    console.log('║   Application started successfully!    ║');
+    console.log('╚════════════════════════════════════════╝\n');
+
     console.log(`\nPress Ctrl+C to stop\n`);
   } catch (error) {
     console.error('Failed to start application:', error);

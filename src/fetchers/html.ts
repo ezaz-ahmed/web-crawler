@@ -52,15 +52,25 @@ export async function fetchHtml(url: string): Promise<FetchResult> {
     $('[role="banner"]').remove();
     $('[role="complementary"]').remove();
 
-    // Extract main content
+    // Extract main content with explicit fallbacks.
+    // Cheerio selections are always truthy, so check `.length` instead of using `||`.
     let content = '';
-    const mainContent =
-      $('main').first() ||
-      $('article').first() ||
-      $('[role="main"]').first() ||
-      $('body');
+    const candidates = [
+      $('main').first(),
+      $('article').first(),
+      $('[role="main"]').first(),
+      $('body').first(),
+    ];
 
-    content = mainContent.text();
+    for (const candidate of candidates) {
+      if (candidate.length > 0) {
+        const text = candidate.text();
+        if (text && text.trim().length > 0) {
+          content = text;
+          break;
+        }
+      }
+    }
 
     // Clean up whitespace
     content = content

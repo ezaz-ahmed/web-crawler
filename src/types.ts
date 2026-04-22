@@ -16,6 +16,7 @@ export interface BaseRequestParams {
   instructions?: string;
   includePatterns?: string[];
   excludePatterns?: string[];
+  callbackUrl?: string;
 }
 
 export interface UrlCrawlRequest extends BaseRequestParams {
