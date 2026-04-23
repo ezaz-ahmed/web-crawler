@@ -15,7 +15,6 @@ import type {
   MultiPageResult,
   Priority,
 } from './types.js';
-import { uploadResult } from './storage/r2.js';
 
 /**
  * Process a single URL crawl job
@@ -93,9 +92,8 @@ async function processWebsiteJob(jobData: WebsiteJobData): Promise<void> {
     },
   );
 
-  // Upload to R2
+  // Final progress step before assembling response payload
   jobStateManager.updateJobProgress(jobData.jobId, 90);
-  const uploadedFile = await uploadResult(jobData.jobId, pages, markdowns);
 
   // Create result
   const result: MultiPageResult = {
@@ -104,10 +102,8 @@ async function processWebsiteJob(jobData: WebsiteJobData): Promise<void> {
     pages: pages.map((page, i) => ({
       url: page.url,
       title: page.title,
-      markdownPath: `pages/${i}.md`,
+      markdown: markdowns[i],
     })),
-    downloadUrl: uploadedFile!.url, // uploadedFile won't be null for multiple pages
-    expiresAt: uploadedFile!.expiresAt,
   };
 
   // Store result
@@ -169,10 +165,9 @@ async function processSitemapJob(jobData: SitemapJobData): Promise<void> {
     pages: urls.map((url) => ({
       url,
       title: 'Pending',
-      markdownPath: 'N/A',
+      markdown:
+        'Pending - check spawned URL child jobs for completed markdown.',
     })),
-    downloadUrl: `Sitemap crawl spawned ${urls.length} child jobs. Check individual job statuses.`,
-    expiresAt: new Date(),
   };
 
   jobStateManager.setJobResult(jobData.jobId, result);

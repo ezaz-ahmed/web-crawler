@@ -105,10 +105,8 @@ export interface MultiPageResult {
   pages: Array<{
     url: string;
     title: string;
-    markdownPath: string;
+    markdown: string;
   }>;
-  downloadUrl: string;
-  expiresAt: Date;
 }
 
 export type CrawlResult = SingleUrlResult | MultiPageResult;

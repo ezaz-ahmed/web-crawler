@@ -21,11 +21,11 @@ const envSchema = z.object({
   OPENAI_MODEL: z.string().default('gpt-4o-mini'),
 
   // Cloudflare R2
-  R2_ACCOUNT_ID: z.string().min(1),
-  R2_ACCESS_KEY_ID: z.string().min(1),
-  R2_SECRET_ACCESS_KEY: z.string().min(1),
-  R2_BUCKET_NAME: z.string().min(1),
-  R2_ENDPOINT: z.string().url(),
+  R2_ACCOUNT_ID: z.string().min(1).optional(),
+  R2_ACCESS_KEY_ID: z.string().min(1).optional(),
+  R2_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+  R2_BUCKET_NAME: z.string().min(1).optional(),
+  R2_ENDPOINT: z.string().url().optional(),
 
   // Authentication
   ALLOWED_API_KEYS: z
@@ -70,11 +70,11 @@ export const config: AppConfig = {
     model: env.OPENAI_MODEL,
   },
   r2: {
-    accountId: env.R2_ACCOUNT_ID,
-    accessKeyId: env.R2_ACCESS_KEY_ID,
-    secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-    bucketName: env.R2_BUCKET_NAME,
-    endpoint: env.R2_ENDPOINT,
+    accountId: env.R2_ACCOUNT_ID ?? '',
+    accessKeyId: env.R2_ACCESS_KEY_ID ?? '',
+    secretAccessKey: env.R2_SECRET_ACCESS_KEY ?? '',
+    bucketName: env.R2_BUCKET_NAME ?? '',
+    endpoint: env.R2_ENDPOINT ?? 'http://localhost',
   },
   auth: {
     allowedApiKeys: env.ALLOWED_API_KEYS,
