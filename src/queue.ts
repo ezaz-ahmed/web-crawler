@@ -11,6 +11,7 @@ export const redisConnection = new IORedis(config.redis.url, {
 // Queue configuration with retry and backoff settings
 const queueOptions: QueueOptions = {
   connection: redisConnection,
+  skipVersionCheck: true,
   defaultJobOptions: {
     attempts: 3,
     backoff: {

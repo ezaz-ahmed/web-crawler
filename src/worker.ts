@@ -15,6 +15,7 @@ import type {
   MultiPageResult,
   Priority,
 } from './types.js';
+import { dispatchWebhook } from './webhook.js';
 
 /**
  * Process a single URL crawl job
@@ -49,6 +50,14 @@ async function processUrlJob(jobData: UrlJobData): Promise<void> {
   // Store result
   jobStateManager.setJobResult(jobData.jobId, result);
   jobStateManager.updateJobStatus(jobData.jobId, 'completed');
+  dispatchWebhook(jobData.callbackUrl, {
+    event: 'job.completed',
+    jobId: jobData.jobId,
+    type: 'url',
+    status: 'completed',
+    result,
+    timestamp: new Date().toISOString(),
+  });
 }
 
 /**
@@ -58,6 +67,7 @@ async function processWebsiteJob(jobData: WebsiteJobData): Promise<void> {
   console.log(`Processing website job: ${jobData.jobId}`);
 
   // Crawl the website
+  let lastReportedProgress = -1;
   const pages = await crawlWebsite(
     jobData.url,
     jobData.crawlDepth,
@@ -68,6 +78,19 @@ async function processWebsiteJob(jobData: WebsiteJobData): Promise<void> {
       // Update progress
       const progress = Math.floor((current / total) * 50); // 0-50% for crawling
       jobStateManager.updateJobProgress(jobData.jobId, progress);
+      // Emit every 5% boundary
+      const bucket = Math.floor(progress / 5) * 5;
+      if (bucket > lastReportedProgress) {
+        lastReportedProgress = bucket;
+        dispatchWebhook(jobData.callbackUrl, {
+          event: 'job.progress',
+          jobId: jobData.jobId,
+          type: 'website',
+          status: 'processing',
+          progress,
+          timestamp: new Date().toISOString(),
+        });
+      }
     },
   );
 
@@ -89,6 +112,19 @@ async function processWebsiteJob(jobData: WebsiteJobData): Promise<void> {
       // Update progress (50-90% for AI processing)
       const progress = 50 + Math.floor((current / total) * 40);
       jobStateManager.updateJobProgress(jobData.jobId, progress);
+      // Emit every 5% boundary
+      const bucket = Math.floor(progress / 5) * 5;
+      if (bucket > lastReportedProgress) {
+        lastReportedProgress = bucket;
+        dispatchWebhook(jobData.callbackUrl, {
+          event: 'job.progress',
+          jobId: jobData.jobId,
+          type: 'website',
+          status: 'processing',
+          progress,
+          timestamp: new Date().toISOString(),
+        });
+      }
     },
   );
 
@@ -110,6 +146,14 @@ async function processWebsiteJob(jobData: WebsiteJobData): Promise<void> {
   jobStateManager.setJobResult(jobData.jobId, result);
   jobStateManager.updateJobProgress(jobData.jobId, 100);
   jobStateManager.updateJobStatus(jobData.jobId, 'completed');
+  dispatchWebhook(jobData.callbackUrl, {
+    event: 'job.completed',
+    jobId: jobData.jobId,
+    type: 'website',
+    status: 'completed',
+    result,
+    timestamp: new Date().toISOString(),
+  });
 }
 
 /**
@@ -172,6 +216,14 @@ async function processSitemapJob(jobData: SitemapJobData): Promise<void> {
 
   jobStateManager.setJobResult(jobData.jobId, result);
   jobStateManager.updateJobStatus(jobData.jobId, 'completed');
+  dispatchWebhook(jobData.callbackUrl, {
+    event: 'job.completed',
+    jobId: jobData.jobId,
+    type: 'sitemap',
+    status: 'completed',
+    result,
+    timestamp: new Date().toISOString(),
+  });
 }
 
 /**
@@ -186,6 +238,13 @@ async function processJob(job: Job<CrawlJobData>): Promise<void> {
 
   // Update status to processing
   jobStateManager.updateJobStatus(jobData.jobId, 'processing');
+  dispatchWebhook(jobData.callbackUrl, {
+    event: 'job.processing',
+    jobId: jobData.jobId,
+    type: jobData.type,
+    status: 'processing',
+    timestamp: new Date().toISOString(),
+  });
 
   try {
     switch (jobData.type) {
@@ -210,6 +269,14 @@ async function processJob(job: Job<CrawlJobData>): Promise<void> {
       'failed',
       (error as Error).message,
     );
+    dispatchWebhook(jobData.callbackUrl, {
+      event: 'job.failed',
+      jobId: jobData.jobId,
+      type: jobData.type,
+      status: 'failed',
+      error: (error as Error).message,
+      timestamp: new Date().toISOString(),
+    });
     throw error; // Re-throw to let BullMQ handle retry logic
   }
 }
@@ -224,18 +291,21 @@ export function startWorkers(): void {
   const highWorker = new Worker<CrawlJobData>('crawl-high', processJob, {
     connection: redisConnection,
     concurrency: 2, // Process 2 high-priority jobs concurrently
+    skipVersionCheck: true,
   });
 
   // Medium priority worker
   const mediumWorker = new Worker<CrawlJobData>('crawl-medium', processJob, {
     connection: redisConnection,
     concurrency: 2,
+    skipVersionCheck: true,
   });
 
   // Low priority worker
   const lowWorker = new Worker<CrawlJobData>('crawl-low', processJob, {
     connection: redisConnection,
     concurrency: 1, // Process 1 low-priority job at a time
+    skipVersionCheck: true,
   });
 
   workers.push(highWorker, mediumWorker, lowWorker);

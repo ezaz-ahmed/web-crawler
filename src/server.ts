@@ -14,6 +14,7 @@ import type {
   StatusResponse,
   Priority,
 } from './types.js';
+import { dispatchWebhook } from './webhook.js';
 
 // Create Fastify instance
 export const app = Fastify({
@@ -141,6 +142,14 @@ app.post<{ Body: UrlCrawlRequest }>(
         estimatedTime: estimateTime('url', body),
       };
 
+      dispatchWebhook(body.callbackUrl, {
+        event: 'job.queued',
+        jobId,
+        type: 'url',
+        status: 'queued',
+        timestamp: new Date().toISOString(),
+      });
+
       return reply.code(200).send(response);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -192,6 +201,14 @@ app.post<{ Body: WebsiteCrawlRequest }>(
         estimatedTime: estimateTime('website', body),
       };
 
+      dispatchWebhook(body.callbackUrl, {
+        event: 'job.queued',
+        jobId,
+        type: 'website',
+        status: 'queued',
+        timestamp: new Date().toISOString(),
+      });
+
       return reply.code(200).send(response);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -240,6 +257,14 @@ app.post<{ Body: SitemapCrawlRequest }>(
         status: 'queued',
         estimatedTime: estimateTime('sitemap', body),
       };
+
+      dispatchWebhook(body.callbackUrl, {
+        event: 'job.queued',
+        jobId,
+        type: 'sitemap',
+        status: 'queued',
+        timestamp: new Date().toISOString(),
+      });
 
       return reply.code(200).send(response);
     } catch (error) {

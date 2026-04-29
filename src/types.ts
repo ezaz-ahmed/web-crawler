@@ -112,6 +112,31 @@ export interface MultiPageResult {
 export type CrawlResult = SingleUrlResult | MultiPageResult;
 
 // ============================================================================
+// Webhook Types
+// ============================================================================
+
+export type WebhookEvent =
+  | 'job.queued'
+  | 'job.processing'
+  | 'job.progress'
+  | 'job.completed'
+  | 'job.failed';
+
+export interface WebhookPayload {
+  event: WebhookEvent;
+  jobId: string;
+  type: CrawlType;
+  status: JobStatus;
+  /** 0-100, present for job.progress events */
+  progress?: number;
+  /** Present for job.completed */
+  result?: CrawlResult;
+  /** Present for job.failed */
+  error?: string;
+  timestamp: string;
+}
+
+// ============================================================================
 // API Response Types
 // ============================================================================
 
