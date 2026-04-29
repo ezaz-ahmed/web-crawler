@@ -1,10 +1,10 @@
 import { Queue, QueueOptions } from 'bullmq';
-import IORedis from 'ioredis';
+import { Redis } from 'ioredis';
 import { config } from './config.js';
 import type { CrawlJobData, Priority } from './types.js';
 
 // Create Redis connection
-export const redisConnection = new IORedis(config.redis.url, {
+export const redisConnection = new Redis(config.redis.url, {
   maxRetriesPerRequest: null,
 });
 

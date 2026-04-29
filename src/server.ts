@@ -80,7 +80,7 @@ function estimateTime(type: string, params: any): string {
 // ============================================================================
 
 // Health check endpoint
-app.get('/health', async (request, reply) => {
+app.get('/health', async (_request, reply) => {
   try {
     // Check Redis connection
     await redisConnection.ping();
@@ -309,7 +309,7 @@ app.get<{ Params: { jobId: string } }>(
 );
 
 // Global error handler
-app.setErrorHandler((error, request, reply) => {
+app.setErrorHandler((error, _request, reply) => {
   app.log.error(error);
 
   return reply.code(500).send({

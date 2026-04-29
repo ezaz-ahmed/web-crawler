@@ -1,11 +1,21 @@
 import robotsParser from 'robots-parser';
 import { config } from '../config.js';
 
+type RobotsTxtParser = {
+  isAllowed: (url: string, ua?: string) => boolean | undefined;
+  getCrawlDelay: (ua?: string) => number | undefined;
+};
+
+const parseRobots = robotsParser as unknown as (
+  url: string,
+  robotsTxt: string,
+) => RobotsTxtParser;
+
 // Cache for robots.txt files (domain -> {parser, fetchedAt})
 const robotsCache = new Map<
   string,
   {
-    parser: ReturnType<typeof robotsParser>;
+    parser: RobotsTxtParser;
     fetchedAt: Date;
   }
 >();
@@ -15,9 +25,7 @@ const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
 /**
  * Get the robots.txt parser for a domain (cached)
  */
-async function getRobotsParser(
-  url: string,
-): Promise<ReturnType<typeof robotsParser> | null> {
+async function getRobotsParser(url: string): Promise<RobotsTxtParser | null> {
   try {
     const urlObj = new URL(url);
     const domain = urlObj.origin;
@@ -46,7 +54,7 @@ async function getRobotsParser(
     }
 
     // Parse robots.txt (even if empty/not found, parser handles gracefully)
-    const parser = robotsParser(robotsUrl, robotsTxt);
+    const parser = parseRobots(robotsUrl, robotsTxt);
 
     // Cache the result
     robotsCache.set(domain, {

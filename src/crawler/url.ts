@@ -13,6 +13,8 @@ export async function crawlSingleUrl(
   includePatterns?: string[],
   excludePatterns?: string[],
 ): Promise<PageResult> {
+  void includePatterns;
+  void excludePatterns;
   console.log(`Crawling single URL: ${url}`);
 
   // Check robots.txt
