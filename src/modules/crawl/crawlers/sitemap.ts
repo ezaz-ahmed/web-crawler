@@ -1,5 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
-import { config } from '../config.js';
+import { config } from '../../../config/env.js';
 import { matchesPatterns } from './patterns.js';
 
 interface SitemapUrl {
@@ -13,9 +13,6 @@ interface Sitemap {
   loc: string;
 }
 
-/**
- * Parse a sitemap XML and extract URLs
- */
 export async function parseSitemap(
   sitemapUrl: string,
   includePatterns?: string[],
@@ -41,10 +38,8 @@ export async function parseSitemap(
   });
 
   const result = parser.parse(xml);
-
   const urls: string[] = [];
 
-  // Check if this is a sitemap index (contains other sitemaps)
   if (result.sitemapindex?.sitemap) {
     const sitemaps = Array.isArray(result.sitemapindex.sitemap)
       ? result.sitemapindex.sitemap
@@ -52,7 +47,6 @@ export async function parseSitemap(
 
     console.log(`Found sitemap index with ${sitemaps.length} child sitemaps`);
 
-    // Recursively parse child sitemaps
     for (const sitemap of sitemaps as Sitemap[]) {
       if (sitemap.loc) {
         const childUrls = await parseSitemap(
@@ -63,16 +57,13 @@ export async function parseSitemap(
         urls.push(...childUrls);
       }
     }
-  }
-  // Regular sitemap with URLs
-  else if (result.urlset?.url) {
+  } else if (result.urlset?.url) {
     const urlEntries = Array.isArray(result.urlset.url)
       ? result.urlset.url
       : [result.urlset.url];
 
     for (const entry of urlEntries as SitemapUrl[]) {
       if (entry.loc) {
-        // Apply pattern matching
         if (matchesPatterns(entry.loc, includePatterns, excludePatterns)) {
           urls.push(entry.loc);
         }

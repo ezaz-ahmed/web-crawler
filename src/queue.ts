@@ -1,12 +1,6 @@
 import { Queue, QueueOptions } from 'bullmq';
-import { Redis } from 'ioredis';
-import { config } from './config.js';
+import { redisConnection } from './plugins/redis.js';
 import type { CrawlJobData, Priority } from './types.js';
-
-// Create Redis connection
-export const redisConnection = new Redis(config.redis.url, {
-  maxRetriesPerRequest: null,
-});
 
 // Queue configuration with retry and backoff settings
 const queueOptions: QueueOptions = {

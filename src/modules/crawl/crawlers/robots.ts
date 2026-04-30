@@ -1,5 +1,5 @@
 import robotsParser from 'robots-parser';
-import { config } from '../config.js';
+import { config } from '../../../config/env.js';
 
 type RobotsTxtParser = {
   isAllowed: (url: string, ua?: string) => boolean | undefined;
@@ -11,7 +11,6 @@ const parseRobots = robotsParser as unknown as (
   robotsTxt: string,
 ) => RobotsTxtParser;
 
-// Cache for robots.txt files (domain -> {parser, fetchedAt})
 const robotsCache = new Map<
   string,
   {
@@ -20,17 +19,13 @@ const robotsCache = new Map<
   }
 >();
 
-const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+const CACHE_DURATION = 60 * 60 * 1000;
 
-/**
- * Get the robots.txt parser for a domain (cached)
- */
 async function getRobotsParser(url: string): Promise<RobotsTxtParser | null> {
   try {
     const urlObj = new URL(url);
     const domain = urlObj.origin;
 
-    // Check cache
     const cached = robotsCache.get(domain);
     if (cached) {
       const age = Date.now() - cached.fetchedAt.getTime();
@@ -39,13 +34,12 @@ async function getRobotsParser(url: string): Promise<RobotsTxtParser | null> {
       }
     }
 
-    // Fetch robots.txt
     const robotsUrl = `${domain}/robots.txt`;
     const response = await fetch(robotsUrl, {
       headers: {
         'User-Agent': config.crawler.userAgent,
       },
-      signal: AbortSignal.timeout(10000), // 10s timeout for robots.txt
+      signal: AbortSignal.timeout(10000),
     });
 
     let robotsTxt = '';
@@ -53,10 +47,8 @@ async function getRobotsParser(url: string): Promise<RobotsTxtParser | null> {
       robotsTxt = await response.text();
     }
 
-    // Parse robots.txt (even if empty/not found, parser handles gracefully)
     const parser = parseRobots(robotsUrl, robotsTxt);
 
-    // Cache the result
     robotsCache.set(domain, {
       parser,
       fetchedAt: new Date(),
@@ -64,15 +56,11 @@ async function getRobotsParser(url: string): Promise<RobotsTxtParser | null> {
 
     return parser;
   } catch (error) {
-    // If fetching fails, assume allowed (don't block on robots.txt errors)
     console.warn(`Failed to fetch robots.txt for ${url}:`, error);
     return null;
   }
 }
 
-/**
- * Check if a URL is allowed by robots.txt
- */
 export async function isAllowedByRobots(
   url: string,
   userAgent?: string,
@@ -82,7 +70,6 @@ export async function isAllowedByRobots(
   try {
     const parser = await getRobotsParser(url);
     if (!parser) {
-      // If no parser available, assume allowed
       return true;
     }
 
@@ -90,17 +77,13 @@ export async function isAllowedByRobots(
     if (!allowed) {
       console.log(`✗ Blocked by robots.txt: ${url}`);
     }
-    return allowed !== false; // Treat undefined as allowed
+    return allowed !== false;
   } catch (error) {
-    // On error, assume allowed (fail open)
     console.warn(`Error checking robots.txt for ${url}:`, error);
     return true;
   }
 }
 
-/**
- * Get crawl delay from robots.txt (in milliseconds)
- */
 export async function getCrawlDelay(
   url: string,
   userAgent?: string,
@@ -114,15 +97,12 @@ export async function getCrawlDelay(
     }
 
     const delay = parser.getCrawlDelay(agent);
-    return delay !== undefined ? delay * 1000 : null; // Convert to milliseconds
+    return delay !== undefined ? delay * 1000 : null;
   } catch {
     return null;
   }
 }
 
-/**
- * Clear robots.txt cache (for testing or manual refresh)
- */
 export function clearRobotsCache(): void {
   robotsCache.clear();
   console.log('✓ Robots.txt cache cleared');

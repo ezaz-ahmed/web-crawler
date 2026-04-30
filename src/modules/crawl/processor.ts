@@ -1,17 +1,13 @@
 import OpenAI from 'openai';
-import { config } from '../config.js';
-import { mergeInstructions, createUserMessage } from './prompts.js';
+import { config } from '../../config/env.js';
+import { mergeInstructions, createUserMessage } from './prompt.js';
 
-// Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: config.openai.apiKey,
 });
 
-const MAX_CONTENT_LENGTH = 100000; // ~100k chars to stay under token limits
+const MAX_CONTENT_LENGTH = 100000;
 
-/**
- * Truncate content if it exceeds max length
- */
 function truncateContent(content: string, maxLength: number): string {
   if (content.length <= maxLength) {
     return content;
@@ -20,14 +16,12 @@ function truncateContent(content: string, maxLength: number): string {
   console.warn(
     `Content truncated from ${content.length} to ${maxLength} chars`,
   );
+
   return (
     content.substring(0, maxLength) + '\n\n[Content truncated due to length...]'
   );
 }
 
-/**
- * Convert web content to markdown using OpenAI
- */
 export async function convertToMarkdown(
   content: string,
   title: string,
@@ -36,14 +30,12 @@ export async function convertToMarkdown(
 ): Promise<string> {
   console.log(`Converting to markdown with AI: ${title}`);
 
-  // Truncate content if needed
   const truncatedContent = truncateContent(content, MAX_CONTENT_LENGTH);
 
   if (!truncatedContent.trim()) {
     throw new Error('No extractable page content found for AI conversion');
   }
 
-  // Prepare messages
   const systemPrompt = mergeInstructions(instructions);
   const userMessage = createUserMessage(title, truncatedContent, url);
 
@@ -72,10 +64,9 @@ export async function convertToMarkdown(
     } catch (error) {
       lastError = error as Error;
 
-      // Check if it's a rate limit error (429)
       if (error instanceof OpenAI.APIError && error.status === 429) {
         retries++;
-        const backoffDelay = Math.pow(2, retries) * 1000; // Exponential backoff
+        const backoffDelay = Math.pow(2, retries) * 1000;
         console.warn(
           `Rate limited by OpenAI, retrying in ${backoffDelay}ms (attempt ${retries}/${maxRetries})`,
         );
@@ -83,28 +74,22 @@ export async function convertToMarkdown(
         continue;
       }
 
-      // For other errors, throw immediately
       throw error;
     }
   }
 
-  // If we exhausted retries
   throw new Error(
     `OpenAI conversion failed after ${maxRetries} retries: ${lastError?.message}`,
   );
 }
 
-/**
- * Batch convert multiple pages to markdown
- * Adds delay between requests to avoid rate limits
- */
 export async function convertPagesToMarkdown(
   pages: Array<{ content: string; title: string; url: string }>,
   instructions?: string,
   onProgress?: (current: number, total: number) => void,
 ): Promise<string[]> {
   const results: string[] = [];
-  const delayBetweenRequests = 1000; // 1 second between requests
+  const delayBetweenRequests = 1000;
 
   for (let i = 0; i < pages.length; i++) {
     const page = pages[i];
@@ -122,7 +107,6 @@ export async function convertPagesToMarkdown(
         onProgress(i + 1, pages.length);
       }
 
-      // Add delay between requests (except for last one)
       if (i < pages.length - 1) {
         await new Promise((resolve) =>
           setTimeout(resolve, delayBetweenRequests),
@@ -130,7 +114,6 @@ export async function convertPagesToMarkdown(
       }
     } catch (error) {
       console.error(`✗ Failed to convert page ${page.url}:`, error);
-      // Add a placeholder for failed conversions
       results.push(
         `# ${page.title}\n\n[Conversion failed: ${(error as Error).message}]`,
       );

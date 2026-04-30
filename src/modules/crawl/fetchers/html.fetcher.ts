@@ -1,10 +1,7 @@
 import * as cheerio from 'cheerio';
-import { config } from '../config.js';
-import type { FetchResult } from '../types.js';
+import { config } from '../../../config/env.js';
+import type { FetchResult } from '../../../types.js';
 
-/**
- * Fetch and parse HTML content from a URL
- */
 export async function fetchHtml(url: string): Promise<FetchResult> {
   console.log(`Fetching HTML: ${url}`);
 
@@ -33,14 +30,12 @@ export async function fetchHtml(url: string): Promise<FetchResult> {
     const html = await response.text();
     const $ = cheerio.load(html);
 
-    // Extract title
     const title =
       $('title').text().trim() ||
       $('h1').first().text().trim() ||
       $('meta[property="og:title"]').attr('content') ||
       new URL(url).pathname;
 
-    // Remove unwanted elements
     $('script').remove();
     $('style').remove();
     $('nav').remove();
@@ -52,8 +47,6 @@ export async function fetchHtml(url: string): Promise<FetchResult> {
     $('[role="banner"]').remove();
     $('[role="complementary"]').remove();
 
-    // Extract main content with explicit fallbacks.
-    // Cheerio selections are always truthy, so check `.length` instead of using `||`.
     let content = '';
     const candidates = [
       $('main').first(),
@@ -72,22 +65,18 @@ export async function fetchHtml(url: string): Promise<FetchResult> {
       }
     }
 
-    // Clean up whitespace
     content = content
       .split('\n')
       .map((line) => line.trim())
       .filter((line) => line.length > 0)
       .join('\n');
 
-    // Extract all links
     const links: string[] = [];
     $('a[href]').each((_, element) => {
       const href = $(element).attr('href');
       if (href) {
         try {
-          // Resolve relative URLs
           const absoluteUrl = new URL(href, url).toString();
-          // Only include http(s) links
           if (
             absoluteUrl.startsWith('http://') ||
             absoluteUrl.startsWith('https://')
@@ -95,12 +84,11 @@ export async function fetchHtml(url: string): Promise<FetchResult> {
             links.push(absoluteUrl);
           }
         } catch {
-          // Skip invalid URLs
+          // Skip invalid URLs.
         }
       }
     });
 
-    // Deduplicate links
     const uniqueLinks = Array.from(new Set(links));
 
     console.log(

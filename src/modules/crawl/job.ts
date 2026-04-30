@@ -1,22 +1,15 @@
-import type { JobState, JobStatus, CrawlResult, CrawlType } from './types.js';
+import type {
+  CrawlResult,
+  CrawlType,
+  JobState,
+  JobStatus,
+  MultiPageResult,
+  SingleUrlResult,
+} from '../../types.js';
 
-/**
- * In-memory job state storage.
- *
- * NOTE: For production with multiple workers, migrate this to Redis hashes.
- * Example Redis implementation:
- * - Key pattern: `job:{jobId}`
- * - Set TTL: 24-48 hours for auto-cleanup
- * - Use HSET/HGET for atomic updates
- *
- * For a single-process MVP, in-memory Map is sufficient and faster.
- */
 class JobStateManager {
   private jobs: Map<string, JobState> = new Map();
 
-  /**
-   * Create a new job in the state store
-   */
   createJob(jobId: string, type: CrawlType): JobState {
     const state: JobState = {
       jobId,
@@ -30,9 +23,6 @@ class JobStateManager {
     return state;
   }
 
-  /**
-   * Update job status
-   */
   updateJobStatus(jobId: string, status: JobStatus, error?: string): void {
     const job = this.jobs.get(jobId);
     if (!job) {
@@ -43,6 +33,7 @@ class JobStateManager {
     if (error) {
       job.error = error;
     }
+
     if (status === 'completed' || status === 'failed') {
       job.completedAt = new Date();
     }
@@ -51,9 +42,6 @@ class JobStateManager {
     console.log(`✓ Updated job ${jobId} status to ${status}`);
   }
 
-  /**
-   * Update job progress (for multi-page crawls)
-   */
   updateJobProgress(jobId: string, progress: number): void {
     const job = this.jobs.get(jobId);
     if (!job) {
@@ -64,9 +52,6 @@ class JobStateManager {
     this.jobs.set(jobId, job);
   }
 
-  /**
-   * Set job result
-   */
   setJobResult(jobId: string, result: CrawlResult): void {
     const job = this.jobs.get(jobId);
     if (!job) {
@@ -78,50 +63,13 @@ class JobStateManager {
     console.log(`✓ Set result for job ${jobId}`);
   }
 
-  /**
-   * Get job state
-   */
   getJobStatus(jobId: string): JobState | undefined {
     return this.jobs.get(jobId);
   }
 
-  /**
-   * Check if job exists
-   */
-  hasJob(jobId: string): boolean {
-    return this.jobs.has(jobId);
-  }
-
-  /**
-   * Delete job (for cleanup)
-   */
-  deleteJob(jobId: string): boolean {
-    return this.jobs.delete(jobId);
-  }
-
-  /**
-   * Get all jobs (for debugging/monitoring)
-   */
-  getAllJobs(): JobState[] {
-    return Array.from(this.jobs.values());
-  }
-
-  /**
-   * Get jobs by status
-   */
-  getJobsByStatus(status: JobStatus): JobState[] {
-    return Array.from(this.jobs.values()).filter(
-      (job) => job.status === status,
-    );
-  }
-
-  /**
-   * Clean up old completed/failed jobs
-   * Call this periodically to prevent memory leaks
-   */
   cleanupOldJobs(maxAgeHours: number = 24): number {
     const now = new Date();
-    const maxAge = maxAgeHours * 60 * 60 * 1000; // Convert to milliseconds
+    const maxAge = maxAgeHours * 60 * 60 * 1000;
     let deletedCount = 0;
 
     for (const [jobId, job] of this.jobs.entries()) {
@@ -141,9 +89,6 @@ class JobStateManager {
     return deletedCount;
   }
 
-  /**
-   * Get stats about current jobs
-   */
   getStats() {
     const jobs = Array.from(this.jobs.values());
     return {
@@ -156,15 +101,44 @@ class JobStateManager {
   }
 }
 
-// Export singleton instance
-export const jobStateManager = new JobStateManager();
+const jobStateManager = new JobStateManager();
 
-// Optional: Schedule periodic cleanup (every hour)
+export function createJobState(jobId: string, type: CrawlType): JobState {
+  return jobStateManager.createJob(jobId, type);
+}
+
+export function updateJobStatus(
+  jobId: string,
+  status: JobStatus,
+  error?: string,
+): void {
+  jobStateManager.updateJobStatus(jobId, status, error);
+}
+
+export function updateJobProgress(jobId: string, progress: number): void {
+  jobStateManager.updateJobProgress(jobId, progress);
+}
+
+export function setJobResult(
+  jobId: string,
+  result: CrawlResult | SingleUrlResult | MultiPageResult,
+): void {
+  jobStateManager.setJobResult(jobId, result);
+}
+
+export function getJobStatus(jobId: string): JobState | undefined {
+  return jobStateManager.getJobStatus(jobId);
+}
+
+export function getJobStats() {
+  return jobStateManager.getStats();
+}
+
 if (typeof setInterval !== 'undefined') {
   setInterval(
     () => {
       jobStateManager.cleanupOldJobs(24);
     },
     60 * 60 * 1000,
-  ); // Every hour
+  );
 }

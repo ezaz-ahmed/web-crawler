@@ -387,6 +387,48 @@ All content is converted to AI-processed markdown using OpenAI.
 
 ---
 
+## Webhooks
+
+If `callbackUrl` is provided in a crawl request, the server sends asynchronous webhook events for job lifecycle updates.
+
+### Delivery Behavior
+
+- Method: `POST`
+- Header: `Content-Type: application/json`
+- Timeout per attempt: `10s`
+- Retries: up to `3` attempts with exponential backoff (`1s`, `2s`, `4s`)
+
+Webhook delivery failures are logged but do not fail crawl jobs.
+
+### Event Types
+
+- `job.queued`
+- `job.processing`
+- `job.progress`
+- `job.completed`
+- `job.failed`
+
+### Webhook Payload
+
+```json
+{
+  "event": "job.progress",
+  "jobId": "xyz789",
+  "type": "website",
+  "status": "processing",
+  "progress": 42,
+  "timestamp": "2026-03-31T10:35:00.000Z"
+}
+```
+
+Field notes:
+
+- `progress`: present only for `job.progress` (0-100)
+- `result`: present only for `job.completed`
+- `error`: present only for `job.failed`
+
+---
+
 ## Environment Variables
 
 | Variable                  | Required | Default             | Description                             |

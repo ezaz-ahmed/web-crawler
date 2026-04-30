@@ -1,4 +1,4 @@
-import type { WebhookPayload } from './types.js';
+import type { WebhookPayload } from '../../types.js';
 
 const MAX_ATTEMPTS = 3;
 const WEBHOOK_TIMEOUT_MS = 10_000;
@@ -47,7 +47,7 @@ export async function sendWebhook(
     }
 
     if (attempt < MAX_ATTEMPTS) {
-      const delayMs = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
+      const delayMs = Math.pow(2, attempt - 1) * 1000;
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
@@ -65,6 +65,7 @@ export function dispatchWebhook(
   payload: WebhookPayload,
 ): void {
   if (!callbackUrl) return;
+
   sendWebhook(callbackUrl, payload).catch(() => {
     // already logged inside sendWebhook — swallow here
   });

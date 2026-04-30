@@ -1,12 +1,9 @@
-import mammoth from 'mammoth';
-import { config } from '../config.js';
-import type { FetchResult } from '../types.js';
+import pdfParse from 'pdf-parse';
+import { config } from '../../../config/env.js';
+import type { FetchResult } from '../../../types.js';
 
-/**
- * Fetch and extract text from a DOCX document
- */
-export async function fetchDocx(url: string): Promise<FetchResult> {
-  console.log(`Fetching DOCX: ${url}`);
+export async function fetchPdf(url: string): Promise<FetchResult> {
+  console.log(`Fetching PDF: ${url}`);
 
   const controller = new AbortController();
   const timeout = setTimeout(
@@ -26,32 +23,29 @@ export async function fetchDocx(url: string): Promise<FetchResult> {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    // Download DOCX as buffer
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+    const data = await pdfParse(buffer);
 
-    // Extract text with mammoth
-    const result = await mammoth.extractRawText({ buffer });
-
-    // Extract title from filename
     const urlObj = new URL(url);
-    const filename = urlObj.pathname.split('/').pop() || 'document.docx';
-    const title = filename.replace(/\.(docx|doc)$/i, '');
+    const filename = urlObj.pathname.split('/').pop() || 'document.pdf';
+    const title = (data.info?.Title as string) || filename.replace('.pdf', '');
 
-    // Clean up text
-    const content = result.value
+    const content = data.text
       .split('\n')
       .map((line) => line.trim())
       .filter((line) => line.length > 0)
       .join('\n');
 
-    console.log(`✓ Fetched DOCX: ${title} (${content.length} chars)`);
+    console.log(
+      `✓ Fetched PDF: ${title} (${data.numpages} pages, ${content.length} chars)`,
+    );
 
     return {
       content,
-      links: [], // DOCX links not extracted in simple approach
+      links: [],
       title,
-      contentType: 'docx',
+      contentType: 'pdf',
     };
   } catch (error) {
     if (error instanceof Error) {
@@ -60,9 +54,9 @@ export async function fetchDocx(url: string): Promise<FetchResult> {
           `Request timeout after ${config.crawler.requestTimeout}ms`,
         );
       }
-      throw new Error(`DOCX parsing error: ${error.message}`);
+      throw new Error(`PDF parsing error: ${error.message}`);
     }
-    throw new Error('Unknown error fetching DOCX');
+    throw new Error('Unknown error fetching PDF');
   } finally {
     clearTimeout(timeout);
   }

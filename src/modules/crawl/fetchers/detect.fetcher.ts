@@ -1,13 +1,9 @@
-import type { ContentType } from '../types.js';
+import type { ContentType } from '../../../types.js';
 
-/**
- * Detect content type from URL and/or HTTP response headers
- */
 export function detectContentType(
   url: string,
   contentTypeHeader?: string,
 ): ContentType {
-  // First try Content-Type header if available
   if (contentTypeHeader) {
     const lowerContentType = contentTypeHeader.toLowerCase();
 
@@ -30,7 +26,6 @@ export function detectContentType(
     }
   }
 
-  // Fallback to file extension
   const urlLower = url.toLowerCase();
 
   if (urlLower.endsWith('.pdf')) {
@@ -48,13 +43,9 @@ export function detectContentType(
     return 'html';
   }
 
-  // Default to unsupported
   return 'unsupported';
 }
 
-/**
- * Get a human-readable description of the content type
- */
 export function getContentTypeDescription(contentType: ContentType): string {
   switch (contentType) {
     case 'html':

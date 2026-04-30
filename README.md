@@ -53,142 +53,7 @@ npm run dev
 
 The API will be available at `http://localhost:3000`.
 
-## API Endpoints
-
-### POST /crawl/url
-
-Crawl a single URL and convert to markdown.
-
-**Request:**
-
-```json
-{
-  "url": "https://example.com/page",
-  "priority": "high",
-  "instructions": "Focus on code examples",
-  "includePatterns": ["/docs"],
-  "excludePatterns": ["/api", "/blog"]
-}
-```
-
-**Response:**
-
-```json
-{
-  "jobId": "abc123",
-  "status": "queued",
-  "estimatedTime": "1-2 minutes"
-}
-```
-
-### POST /crawl/website
-
-Recursively crawl a website.
-
-**Request:**
-
-```json
-{
-  "url": "https://example.com",
-  "crawlDepth": 2,
-  "maxPages": 50,
-  "priority": "medium",
-  "instructions": "Extract documentation only",
-  "includePatterns": ["/docs"],
-  "excludePatterns": ["/blog"]
-}
-```
-
-### POST /crawl/sitemap
-
-Crawl URLs from a sitemap.
-
-**Request:**
-
-```json
-{
-  "sitemapUrl": "https://example.com/sitemap.xml",
-  "priority": "low",
-  "includePatterns": ["/articles"],
-  "excludePatterns": ["/drafts"]
-}
-```
-
-### GET /crawl/status/:jobId
-
-Check job status and retrieve results.
-
-**Response (completed single URL):**
-
-```json
-{
-  "jobId": "abc123",
-  "status": "completed",
-  "result": {
-    "url": "https://example.com/page",
-    "title": "Page Title",
-    "markdown": "# Page Title\n\nContent here...",
-    "wordCount": 500,
-    "fetchedAt": "2026-03-25T10:30:00Z"
-  },
-  "createdAt": "2026-03-25T10:28:00Z",
-  "completedAt": "2026-03-25T10:30:00Z"
-}
-```
-
-**Response (completed multi-page):**
-
-```json
-{
-  "jobId": "xyz789",
-  "status": "completed",
-  "progress": 100,
-  "result": {
-    "rootUrl": "https://example.com",
-    "totalPages": 47,
-    "pages": [
-      {
-        "url": "https://example.com/page-1",
-        "title": "Page 1",
-        "markdown": "# Page 1\n\n..."
-      }
-    ]
-  }
-}
-```
-
-### GET /health
-
-Health check endpoint.
-
-## Authentication
-
-All `/crawl/*` endpoints require an API key:
-
-```bash
-Authorization: Bearer your-api-key-here
-```
-
-Configure allowed API keys in `.env`:
-
-```
-ALLOWED_API_KEYS=key1,key2,key3
-```
-
-## Configuration
-
-Key environment variables:
-
-| Variable                  | Description                 | Default                |
-| ------------------------- | --------------------------- | ---------------------- |
-| `PORT`                    | Server port                 | 3000                   |
-| `REDIS_URL`               | Redis connection URL        | redis://localhost:6379 |
-| `OPENAI_API_KEY`          | OpenAI API key              | _required_             |
-| `OPENAI_MODEL`            | OpenAI model                | gpt-4o-mini            |
-| `ALLOWED_API_KEYS`        | Comma-separated API keys    | _required_             |
-| `MAX_CONCURRENT_REQUESTS` | Max concurrent fetches      | 5                      |
-| `REQUEST_TIMEOUT`         | Request timeout (ms)        | 30000                  |
-| `RATE_LIMIT_PER_DOMAIN`   | Delay between requests (ms) | 1000                   |
+Full API documentation (endpoints, authentication, configuration, responses, and error formats) is available in [API.md](API.md).
 
 ## Development
 
@@ -232,71 +97,70 @@ npm start
             └──────────┘   └──────────┘
 ```
 
-## Project Structure
+## Folder Structure Summary
 
-```
+- `src/app.ts`: Builds and wires the Fastify app (routes, middleware, plugins)
+- `src/server.ts`: Boring server lifecycle only (start/stop)
+- `src/index.ts`: Process bootstrap and graceful shutdown orchestration
+- `src/workers/`: Background worker entrypoints
+- `src/modules/`: Feature modules with route/controller/service/domain logic
+- `src/plugins/`: Shared infrastructure adapters (Redis, etc.)
+- `src/config/`: Environment loading and validation
+- `src/middleware/`: Cross-cutting HTTP middleware
+- `src/utils/`: Shared utility helpers
+
+Current production-oriented tree:
+
+```text
 src/
-├── index.ts              # Entry point
-├── server.ts             # Fastify API routes
-├── worker.ts             # BullMQ job processor
-├── queue.ts              # Queue setup
-├── jobState.ts           # Job state management
-├── config.ts             # Configuration loader
-├── types.ts              # TypeScript types
+├── app.ts
+├── index.ts
+├── server.ts
+├── worker.ts
+├── queue.ts
+├── types.ts
+├── config.ts
 │
-├── fetchers/
-│   ├── detect.ts         # Content-type detection
-│   ├── html.ts           # HTML fetcher
-│   ├── pdf.ts            # PDF fetcher
-│   └── docx.ts           # DOCX fetcher
+├── config/
+│   ├── env.ts
+│   └── validation.ts
 │
-├── crawler/
-│   ├── patterns.ts       # URL pattern matching
-│   ├── url.ts            # Single URL crawler
-│   ├── website.ts        # Recursive crawler
-│   ├── sitemap.ts        # Sitemap parser
-│   └── robots.ts         # Robots.txt handler
+├── modules/
+│   └── crawl/
+│       ├── crawl.route.ts
+│       ├── crawl.controller.ts
+│       ├── crawl.service.ts
+│       ├── crawl.schema.ts
+│       ├── processor.ts
+│       ├── prompt.ts
+│       ├── webhook.ts
+│       ├── job.ts
+│       ├── crawlers/
+│       │   ├── single-url.ts
+│       │   ├── website.ts
+│       │   ├── sitemap.ts
+│       │   ├── patterns.ts
+│       │   └── robots.ts
+│       └── fetchers/
+│           ├── http.fetcher.ts
+│           ├── detect.fetcher.ts
+│           ├── html.fetcher.ts
+│           ├── pdf.fetcher.ts
+│           └── docx.fetcher.ts
 │
-├── ai/
-│   ├── prompts.ts        # System prompts
-│   └── processor.ts      # OpenAI integration
+├── workers/
+│   └── crawl.worker.ts
 │
-└── middleware/
-    └── auth.ts           # API key authentication
-```
-
-## Example Usage
-
-```bash
-# 1. Start the service
-docker-compose up -d
-npm run dev
-
-# 2. Crawl a single page
-curl -X POST http://localhost:3000/crawl/url \
-  -H "Authorization: Bearer your-key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://fastify.dev/docs/latest/",
-    "priority": "high"
-  }'
-
-# Response: {"jobId":"abc123","status":"queued","estimatedTime":"1-2 minutes"}
-
-# 3. Check status
-curl http://localhost:3000/crawl/status/abc123
-
-# 4. Crawl a website
-curl -X POST http://localhost:3000/crawl/website \
-  -H "Authorization: Bearer your-key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://docs.example.com",
-    "crawlDepth": 2,
-    "maxPages": 20,
-    "includePatterns": ["/docs"],
-    "priority": "medium"
-  }'
+├── plugins/
+│   └── redis.ts
+│
+├── middleware/
+│   ├── auth.ts
+│   ├── error-handler.ts
+│   └── request-logger.ts
+│
+└── utils/
+    └── logger.ts
 ```
 
 ## Troubleshooting

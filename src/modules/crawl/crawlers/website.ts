@@ -1,12 +1,9 @@
 import PQueue from 'p-queue';
-import { crawlSingleUrl } from './url.js';
+import { crawlSingleUrl } from './single-url.js';
 import { matchesPatterns, isSameOrigin, normalizeUrl } from './patterns.js';
-import { config } from '../config.js';
-import type { PageResult } from '../types.js';
+import { config } from '../../../config/env.js';
+import type { PageResult } from '../../../types.js';
 
-/**
- * Recursively crawl a website starting from a root URL
- */
 export async function crawlWebsite(
   rootUrl: string,
   crawlDepth: number,
@@ -25,7 +22,6 @@ export async function crawlWebsite(
     { url: rootUrl, depth: 0 },
   ];
 
-  // Rate limiting: 1 request per domain every N milliseconds
   const rateLimiter = new PQueue({
     interval: config.crawler.rateLimitPerDomain,
     intervalCap: 1,
@@ -36,37 +32,30 @@ export async function crawlWebsite(
     const item = queue.shift()!;
     const normalizedUrl = normalizeUrl(item.url);
 
-    // Skip if already visited
     if (visited.has(normalizedUrl)) {
       continue;
     }
 
-    // Skip if depth exceeded
     if (item.depth > crawlDepth) {
       continue;
     }
 
-    // Skip if doesn't match patterns
     if (!matchesPatterns(item.url, includePatterns, excludePatterns)) {
       continue;
     }
 
-    // Skip if not same origin
     if (!isSameOrigin(item.url, rootUrl)) {
       continue;
     }
 
-    // Mark as visited
     visited.add(normalizedUrl);
 
     try {
-      // Crawl the page with rate limiting
       const pageResult = await rateLimiter.add(() => crawlSingleUrl(item.url));
 
       if (pageResult) {
         results.push(pageResult);
 
-        // Report progress
         if (onProgress) {
           onProgress(
             results.length,
@@ -78,7 +67,6 @@ export async function crawlWebsite(
           `✓ Crawled (${results.length}/${maxPages}): ${pageResult.title} - ${pageResult.url}`,
         );
 
-        // Add discovered links to queue if we haven't reached max depth
         if (item.depth < crawlDepth) {
           for (const link of pageResult.links) {
             const normalizedLink = normalizeUrl(link);
@@ -94,10 +82,8 @@ export async function crawlWebsite(
       }
     } catch (error) {
       console.error(`✗ Failed to crawl ${item.url}:`, error);
-      // Continue with next URL on error
     }
 
-    // Check if we've reached max pages
     if (results.length >= maxPages) {
       console.log(`Reached max pages limit (${maxPages})`);
       break;

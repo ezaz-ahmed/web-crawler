@@ -2,7 +2,7 @@
 
 import { logConfig } from './config.js';
 import { startServer, stopServer } from './server.js';
-import { startWorkers, stopWorkers } from './worker.js';
+import { startWorkers, stopWorkers } from './workers/crawl.worker.js';
 import { closeQueues } from './queue.js';
 
 // Log configuration
