@@ -168,24 +168,6 @@ export interface FetchResult {
 }
 
 // ============================================================================
-// Storage Types
-// ============================================================================
-
-export interface StorageConfig {
-  accountId: string;
-  accessKeyId: string;
-  secretAccessKey: string;
-  bucketName: string;
-  endpoint: string;
-}
-
-export interface UploadResult {
-  key: string;
-  url: string;
-  expiresAt: Date;
-}
-
-// ============================================================================
 // Configuration Types
 // ============================================================================
 
@@ -199,7 +181,6 @@ export interface AppConfig {
     apiKey: string;
     model: string;
   };
-  r2: StorageConfig;
   auth: {
     allowedApiKeys: string[];
   };

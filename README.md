@@ -14,7 +14,7 @@ An async web crawler API with AI-powered markdown conversion using OpenAI. Built
 - **Pattern-based URL filtering** (include/exclude)
 - **Robots.txt compliance**
 - **Rate limiting** per domain
-- **Cloudflare R2 storage** for multi-page results
+- **Inline multi-page results** returned directly in status response
 
 ## Quick Start
 
@@ -23,7 +23,6 @@ An async web crawler API with AI-powered markdown conversion using OpenAI. Built
 - Node.js 20+
 - Docker (for Redis)
 - OpenAI API key
-- Cloudflare R2 account (for multi-page crawls)
 
 ### Installation
 
@@ -147,8 +146,13 @@ Check job status and retrieve results.
   "result": {
     "rootUrl": "https://example.com",
     "totalPages": 47,
-    "downloadUrl": "https://storage.example.com/results/xyz789.tar.gz?signature=...",
-    "expiresAt": "2026-03-26T10:30:00Z"
+    "pages": [
+      {
+        "url": "https://example.com/page-1",
+        "title": "Page 1",
+        "markdown": "# Page 1\n\n..."
+      }
+    ]
   }
 }
 ```
@@ -175,20 +179,16 @@ ALLOWED_API_KEYS=key1,key2,key3
 
 Key environment variables:
 
-| Variable                  | Description                 | Default                   |
-| ------------------------- | --------------------------- | ------------------------- |
-| `PORT`                    | Server port                 | 3000                      |
-| `REDIS_URL`               | Redis connection URL        | redis://localhost:6379    |
-| `OPENAI_API_KEY`          | OpenAI API key              | _required_                |
-| `OPENAI_MODEL`            | OpenAI model                | gpt-4o-mini               |
-| `R2_ACCOUNT_ID`           | Cloudflare R2 account       | _required for multi-page_ |
-| `R2_ACCESS_KEY_ID`        | R2 access key               | _required for multi-page_ |
-| `R2_SECRET_ACCESS_KEY`    | R2 secret key               | _required for multi-page_ |
-| `R2_BUCKET_NAME`          | R2 bucket name              | _required for multi-page_ |
-| `ALLOWED_API_KEYS`        | Comma-separated API keys    | _required_                |
-| `MAX_CONCURRENT_REQUESTS` | Max concurrent fetches      | 5                         |
-| `REQUEST_TIMEOUT`         | Request timeout (ms)        | 30000                     |
-| `RATE_LIMIT_PER_DOMAIN`   | Delay between requests (ms) | 1000                      |
+| Variable                  | Description                 | Default                |
+| ------------------------- | --------------------------- | ---------------------- |
+| `PORT`                    | Server port                 | 3000                   |
+| `REDIS_URL`               | Redis connection URL        | redis://localhost:6379 |
+| `OPENAI_API_KEY`          | OpenAI API key              | _required_             |
+| `OPENAI_MODEL`            | OpenAI model                | gpt-4o-mini            |
+| `ALLOWED_API_KEYS`        | Comma-separated API keys    | _required_             |
+| `MAX_CONCURRENT_REQUESTS` | Max concurrent fetches      | 5                      |
+| `REQUEST_TIMEOUT`         | Request timeout (ms)        | 30000                  |
+| `RATE_LIMIT_PER_DOMAIN`   | Delay between requests (ms) | 1000                   |
 
 ## Development
 
@@ -227,9 +227,9 @@ npm start
                              │
               ┌──────────────┼──────────────┐
               ▼              ▼              ▼
-       ┌──────────┐   ┌──────────┐   ┌──────────┐
-       │ Crawler  │   │ OpenAI   │   │ R2 Store │
-       └──────────┘   └──────────┘   └──────────┘
+            ┌──────────┐   ┌──────────┐
+            │ Crawler  │   │ OpenAI   │
+            └──────────┘   └──────────┘
 ```
 
 ## Project Structure
@@ -260,9 +260,6 @@ src/
 ├── ai/
 │   ├── prompts.ts        # System prompts
 │   └── processor.ts      # OpenAI integration
-│
-├── storage/
-│   └── r2.ts             # Cloudflare R2 client
 │
 └── middleware/
     └── auth.ts           # API key authentication
@@ -314,12 +311,6 @@ curl -X POST http://localhost:3000/crawl/website \
 - The system automatically retries with exponential backoff
 - Consider using a higher tier OpenAI account
 - Reduce concurrent workers in [worker.ts](src/worker.ts)
-
-**R2 upload failed:**
-
-- Verify R2 credentials in `.env`
-- Check bucket permissions
-- Ensure endpoint URL is correct
 
 **Worker not processing jobs:**
 

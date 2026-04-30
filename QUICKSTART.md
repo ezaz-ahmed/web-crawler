@@ -21,13 +21,6 @@ Edit `.env` and add your credentials:
 # Required immediately
 OPENAI_API_KEY=sk-your-openai-api-key-here
 ALLOWED_API_KEYS=test-key-123
-
-# Required for multi-page crawls (can configure later)
-R2_ACCOUNT_ID=your-r2-account-id
-R2_ACCESS_KEY_ID=your-r2-access-key
-R2_SECRET_ACCESS_KEY=your-r2-secret-key
-R2_BUCKET_NAME=web-crawler-results
-R2_ENDPOINT=https://your-account-id.r2.cloudflarestorage.com
 ```
 
 ### 3. Start Redis
@@ -177,10 +170,9 @@ curl -X POST http://localhost:3000/crawl/url \
 For production, you'll need to:
 
 1. Set up a production Redis instance (e.g., Redis Cloud, AWS ElastiCache)
-2. Configure Cloudflare R2 bucket for multi-page results
-3. Set `NODE_ENV=production` in `.env`
-4. Build the project: `npm run build`
-5. Run with: `npm start`
-6. Consider using a process manager like PM2 or Docker for deployment
+2. Set `NODE_ENV=production` in `.env`
+3. Build the project: `npm run build`
+4. Run with: `npm start`
+5. Consider using a process manager like PM2 or Docker for deployment
 
 See [README.md](README.md) for full documentation.

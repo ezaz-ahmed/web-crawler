@@ -20,13 +20,6 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().min(1),
   OPENAI_MODEL: z.string().default('gpt-4o-mini'),
 
-  // Cloudflare R2
-  R2_ACCOUNT_ID: z.string().min(1).optional(),
-  R2_ACCESS_KEY_ID: z.string().min(1).optional(),
-  R2_SECRET_ACCESS_KEY: z.string().min(1).optional(),
-  R2_BUCKET_NAME: z.string().min(1).optional(),
-  R2_ENDPOINT: z.string().url().optional(),
-
   // Authentication
   ALLOWED_API_KEYS: z
     .string()
@@ -68,13 +61,6 @@ export const config: AppConfig = {
   openai: {
     apiKey: env.OPENAI_API_KEY,
     model: env.OPENAI_MODEL,
-  },
-  r2: {
-    accountId: env.R2_ACCOUNT_ID ?? '',
-    accessKeyId: env.R2_ACCESS_KEY_ID ?? '',
-    secretAccessKey: env.R2_SECRET_ACCESS_KEY ?? '',
-    bucketName: env.R2_BUCKET_NAME ?? '',
-    endpoint: env.R2_ENDPOINT ?? 'http://localhost',
   },
   auth: {
     allowedApiKeys: env.ALLOWED_API_KEYS,
