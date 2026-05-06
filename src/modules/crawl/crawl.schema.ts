@@ -22,3 +22,28 @@ export const sitemapCrawlSchema = z.object({
   excludePatterns: z.array(z.string()).optional(),
   callbackUrl: z.string().url().optional(),
 });
+
+export const memberLoungeCrawlSchema = z.object({
+  memberLoungeUrl: z
+    .string()
+    .url()
+    .refine((value) => {
+      try {
+        const parsed = new URL(value);
+        return parsed.hostname.endsWith('.memberlounge.app');
+      } catch {
+        return false;
+      }
+    }, 'memberLoungeUrl must be a valid memberlounge.app domain'),
+  type: z.preprocess(
+    (value) => (typeof value === 'string' ? value.toLowerCase() : value),
+    z.enum(['event', 'resource', 'discussion']),
+  ),
+  email: z.string().email(),
+  password: z.string().min(1),
+  priority: z.enum(['low', 'medium', 'high']).optional().default('medium'),
+  instructions: z.string().optional(),
+  includePatterns: z.array(z.string()).optional(),
+  excludePatterns: z.array(z.string()).optional(),
+  callbackUrl: z.string().url().optional(),
+});

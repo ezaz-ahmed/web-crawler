@@ -2,6 +2,7 @@ import { nanoid } from 'nanoid';
 import { enqueueCrawlJob } from '../../queue.js';
 import type {
   EnqueueResponse,
+  MemberLoungeCrawlRequest,
   Priority,
   SitemapCrawlRequest,
   StatusResponse,
@@ -12,7 +13,7 @@ import { createJobState, getJobStatus } from './job.js';
 import { dispatchWebhook } from './webhook.js';
 
 function estimateTime(
-  type: 'url' | 'website' | 'sitemap',
+  type: 'url' | 'website' | 'sitemap' | 'member-lounge',
   params: unknown,
 ): string {
   if (type === 'url') {
@@ -24,6 +25,20 @@ function estimateTime(
     const pages = websiteParams.maxPages || 10;
     const minutes = Math.ceil(pages / 2);
     return `${minutes}-${minutes * 2} minutes`;
+  }
+
+  if (type === 'member-lounge') {
+    const memberLoungeParams = params as MemberLoungeCrawlRequest;
+
+    if (memberLoungeParams.type === 'resource') {
+      return '4-8 minutes';
+    }
+
+    if (memberLoungeParams.type === 'discussion') {
+      return '2-5 minutes';
+    }
+
+    return '3-6 minutes';
   }
 
   return '5-10 minutes';
@@ -139,6 +154,46 @@ export async function enqueueSitemapCrawl(
     jobId,
     status: 'queued',
     estimatedTime: estimateTime('sitemap', body),
+  };
+}
+
+export async function enqueueMemberLoungeCrawl(
+  body: MemberLoungeCrawlRequest,
+): Promise<EnqueueResponse> {
+  const jobId = nanoid();
+
+  createJobState(jobId, 'member-lounge');
+
+  await enqueueCrawlJob(
+    {
+      type: 'member-lounge',
+      jobId,
+      memberLoungeUrl: body.memberLoungeUrl,
+      crawlKind: body.type,
+      email: body.email,
+      password: body.password,
+      priority: body.priority,
+      instructions: body.instructions,
+      includePatterns: body.includePatterns,
+      excludePatterns: body.excludePatterns,
+      callbackUrl: body.callbackUrl,
+      createdAt: new Date(),
+    },
+    body.priority as Priority,
+  );
+
+  dispatchWebhook(body.callbackUrl, {
+    event: 'job.queued',
+    jobId,
+    type: 'member-lounge',
+    status: 'queued',
+    timestamp: new Date().toISOString(),
+  });
+
+  return {
+    jobId,
+    status: 'queued',
+    estimatedTime: estimateTime('member-lounge', body),
   };
 }
 

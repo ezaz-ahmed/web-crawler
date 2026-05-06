@@ -5,7 +5,8 @@
 export type Priority = 'low' | 'medium' | 'high';
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed';
 export type ContentType = 'html' | 'pdf' | 'docx' | 'unsupported';
-export type CrawlType = 'url' | 'website' | 'sitemap';
+export type CrawlType = 'url' | 'website' | 'sitemap' | 'member-lounge';
+export type MemberLoungeCrawlKind = 'event' | 'resource' | 'discussion';
 
 // ============================================================================
 // Request Types
@@ -31,6 +32,13 @@ export interface WebsiteCrawlRequest extends BaseRequestParams {
 
 export interface SitemapCrawlRequest extends BaseRequestParams {
   sitemapUrl: string;
+}
+
+export interface MemberLoungeCrawlRequest extends BaseRequestParams {
+  memberLoungeUrl: string;
+  type: MemberLoungeCrawlKind;
+  email: string;
+  password: string;
 }
 
 // ============================================================================
@@ -60,7 +68,19 @@ export interface SitemapJobData extends BaseJobData {
   sitemapUrl: string;
 }
 
-export type CrawlJobData = UrlJobData | WebsiteJobData | SitemapJobData;
+export interface MemberLoungeJobData extends BaseJobData {
+  type: 'member-lounge';
+  memberLoungeUrl: string;
+  crawlKind: MemberLoungeCrawlKind;
+  email: string;
+  password: string;
+}
+
+export type CrawlJobData =
+  | UrlJobData
+  | WebsiteJobData
+  | SitemapJobData
+  | MemberLoungeJobData;
 
 // ============================================================================
 // Job State Types
@@ -109,7 +129,71 @@ export interface MultiPageResult {
   }>;
 }
 
-export type CrawlResult = SingleUrlResult | MultiPageResult;
+export interface MemberLoungeEvent {
+  id?: string;
+  title: string;
+  description?: string;
+  startDate?: string;
+  endDate?: string;
+  location?: string;
+  url?: string;
+  isRegistered: boolean;
+}
+
+export interface MemberLoungeResource {
+  id?: string;
+  title: string;
+  description?: string;
+  category?: string;
+  url?: string;
+  isPurchased: boolean;
+  files?: Array<{
+    name: string;
+    url: string;
+    type: 'pdf' | 'docx' | 'other';
+  }>;
+  fileMarkdownByName?: Record<string, string>;
+}
+
+export interface MemberLoungeDiscussion {
+  id?: string;
+  title: string;
+  summary?: string;
+  author?: string;
+  lastActivityAt?: string;
+  url?: string;
+}
+
+export interface MemberLoungeResultBase {
+  memberLoungeUrl: string;
+  crawlKind: MemberLoungeCrawlKind;
+  warnings?: string[];
+}
+
+export interface MemberLoungeEventResult extends MemberLoungeResultBase {
+  crawlKind: 'event';
+  events: MemberLoungeEvent[];
+}
+
+export interface MemberLoungeResourceResult extends MemberLoungeResultBase {
+  crawlKind: 'resource';
+  resources: MemberLoungeResource[];
+}
+
+export interface MemberLoungeDiscussionResult extends MemberLoungeResultBase {
+  crawlKind: 'discussion';
+  discussions: MemberLoungeDiscussion[];
+}
+
+export type MemberLoungeResult =
+  | MemberLoungeEventResult
+  | MemberLoungeResourceResult
+  | MemberLoungeDiscussionResult;
+
+export type CrawlResult =
+  | SingleUrlResult
+  | MultiPageResult
+  | MemberLoungeResult;
 
 // ============================================================================
 // Webhook Types

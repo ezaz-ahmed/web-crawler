@@ -1,21 +1,27 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type {
+  MemberLoungeCrawlRequest,
   SitemapCrawlRequest,
   UrlCrawlRequest,
   WebsiteCrawlRequest,
 } from '../../types.js';
 import {
+  memberLoungeCrawlSchema,
   sitemapCrawlSchema,
   urlCrawlSchema,
   websiteCrawlSchema,
 } from './crawl.schema.js';
 import {
+  enqueueMemberLoungeCrawl,
   enqueueSitemapCrawl,
   enqueueUrlCrawl,
   enqueueWebsiteCrawl,
   getCrawlStatus,
 } from './crawl.service.js';
+import { testMemberLoungeLogin } from './member-lounge/member-lounge.auth.js';
+import { logger } from '../../utils/logger.js';
+import { logConfig } from '../../config.js';
 
 function handleValidationError(error: unknown, reply: FastifyReply): void {
   if (error instanceof z.ZodError) {
@@ -63,6 +69,50 @@ export async function createSitemapCrawl(
     const body = sitemapCrawlSchema.parse(request.body);
     const response = await enqueueSitemapCrawl(body);
     reply.code(200).send(response);
+  } catch (error) {
+    handleValidationError(error, reply);
+  }
+}
+
+export async function createMemberLoungeCrawl(
+  request: FastifyRequest<{ Body: MemberLoungeCrawlRequest }>,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const body = memberLoungeCrawlSchema.parse(request.body);
+
+    logger.info(
+      `Member lounge crawl requested for ${body.memberLoungeUrl} type=${body.type}`,
+    );
+
+    const loginResult = await testMemberLoungeLogin(
+      body.memberLoungeUrl,
+      body.email,
+      body.password,
+    );
+
+    logger.info(
+      `Member lounge login result for ${body.memberLoungeUrl}: ${loginResult.success ? 'success' : 'failure'}`,
+    );
+
+    if (!loginResult.success) {
+      reply.code(401).send({
+        error: 'Authentication Failed',
+        message: loginResult.message,
+        loginStatus: 'failed',
+      });
+      return;
+    }
+
+    const enqueueResponse = await enqueueMemberLoungeCrawl(body);
+    reply.code(200).send({
+      loginStatus: 'successful',
+      loginMessage: loginResult.message,
+      jobId: enqueueResponse.jobId,
+      type: body.type,
+      status: enqueueResponse.status,
+      estimatedTime: enqueueResponse.estimatedTime,
+    });
   } catch (error) {
     handleValidationError(error, reply);
   }

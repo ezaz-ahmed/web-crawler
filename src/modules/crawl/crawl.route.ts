@@ -1,11 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { authenticateApiKey } from '../../middleware/auth.js';
 import type {
+  MemberLoungeCrawlRequest,
   SitemapCrawlRequest,
   UrlCrawlRequest,
   WebsiteCrawlRequest,
 } from '../../types.js';
 import {
+  createMemberLoungeCrawl,
   createSitemapCrawl,
   createUrlCrawl,
   createWebsiteCrawl,
@@ -29,6 +31,12 @@ export async function registerCrawlRoutes(app: FastifyInstance): Promise<void> {
     '/crawl/sitemap',
     { preHandler: authenticateApiKey },
     createSitemapCrawl,
+  );
+
+  app.post<{ Body: MemberLoungeCrawlRequest }>(
+    '/crawl/member-lounge',
+    { preHandler: authenticateApiKey },
+    createMemberLoungeCrawl,
   );
 
   app.get('/crawl/status/:jobId', getCrawlStatusById);
