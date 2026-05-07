@@ -36,11 +36,11 @@
     "puppeteer": "^24.43.0",
     "robots-parser": "^3.0.1",
     "@types/node": "^20.19.39",
+    "typescript": "^5.5.3",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/pdf-parse": "^1.1.4",
-    "tsx": "^4.16.2",
-    "typescript": "^5.5.3"
+    "tsx": "^4.16.2"
   }
 }
