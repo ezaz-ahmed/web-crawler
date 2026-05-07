@@ -19,6 +19,9 @@ export const config: AppConfig = {
   auth: {
     allowedApiKeys: env.ALLOWED_API_KEYS,
   },
+  webhooks: {
+    secret: env.WEBHOOK_SECRET,
+  },
   crawler: {
     userAgent: env.USER_AGENT,
     maxConcurrentRequests: env.MAX_CONCURRENT_REQUESTS,

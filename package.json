@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "tsc && echo Build successful",
     "start": "node dist/index.js",
     "type-check": "tsc --noEmit"
   },
@@ -38,7 +38,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/node": "^20.14.10",
+    "@types/node": "^20.19.39",
     "@types/pdf-parse": "^1.1.4",
     "tsx": "^4.16.2",
     "typescript": "^5.5.3"

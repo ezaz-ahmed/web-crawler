@@ -1,4 +1,4 @@
-import type { BrowserContext } from 'playwright';
+import type { Page } from 'puppeteer';
 import mammoth from 'mammoth';
 import pdfParse from 'pdf-parse';
 import { convertToMarkdown } from '../processor.js';
@@ -18,7 +18,7 @@ function normalizeFileType(url: string): 'pdf' | 'docx' | 'other' {
 }
 
 export async function buildMarkdownByFilename(
-  context: BrowserContext,
+  page: Page,
   files: Array<{ name: string; url: string }>,
   instructions?: string,
 ): Promise<Record<string, string>> {
@@ -32,12 +32,24 @@ export async function buildMarkdownByFilename(
     }
 
     try {
-      const response = await context.request.get(file.url);
-      if (!response.ok()) {
-        throw new Error(`HTTP ${response.status()} while fetching file`);
-      }
+      const filePage = await page.browser().newPage();
 
-      const buffer = Buffer.from(await response.body());
+      let buffer: Buffer;
+      try {
+        const response = await filePage.goto(file.url, {
+          waitUntil: 'networkidle0',
+          timeout: 25_000,
+        });
+
+        if (!response || !response.ok()) {
+          const status = response?.status() ?? 'unknown';
+          throw new Error(`HTTP ${status} while fetching file`);
+        }
+
+        buffer = Buffer.from(await response.buffer());
+      } finally {
+        await filePage.close();
+      }
 
       const extractedText =
         fileType === 'pdf'

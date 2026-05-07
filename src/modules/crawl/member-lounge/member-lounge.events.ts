@@ -1,4 +1,4 @@
-import type { Page } from 'playwright';
+import type { Page } from 'puppeteer';
 import * as cheerio from 'cheerio';
 import type { MemberLoungeEvent } from '../../../types.js';
 

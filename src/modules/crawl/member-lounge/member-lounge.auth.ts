@@ -1,4 +1,4 @@
-import { chromium, type BrowserContext, type Page } from 'playwright';
+import puppeteer, { type Browser, type Frame, type Page } from 'puppeteer';
 import { logger } from '../../../utils/logger.js';
 import type {
   AuthenticatedSession,
@@ -6,7 +6,6 @@ import type {
 } from './member-lounge.types.js';
 
 const NAVIGATION_TIMEOUT_MS = 25_000;
-const FIELD_LOOKUP_TIMEOUT_MS = 2_000;
 
 const EMAIL_SELECTORS = [
   'input[name="email"][type="text"]',
@@ -31,8 +30,9 @@ const PASSWORD_SELECTORS = [
 const SUBMIT_SELECTORS = [
   'button[type="submit"]',
   'input[type="submit"]',
-  'button:has-text("Sign In")',
-  'button:has-text("Login")',
+  'button[name="submit"]',
+  'button[id*="login" i]',
+  'button[class*="login" i]',
 ];
 
 function normalizeBaseUrl(url: string): string {
@@ -44,23 +44,61 @@ async function hasVisibleSelector(
   page: Page,
   selectors: string[],
 ): Promise<boolean> {
-  for (const selector of selectors) {
-    const locator = page.locator(selector).first();
-    if ((await locator.count()) > 0) {
-      return true;
-    }
-  }
+  const roots: Array<Page | Frame> = [page, ...page.frames()];
 
-  for (const frame of page.frames()) {
+  for (const root of roots) {
     for (const selector of selectors) {
-      const locator = frame.locator(selector).first();
-      if ((await locator.count()) > 0) {
+      if (await root.$(selector)) {
         return true;
       }
     }
   }
 
   return false;
+}
+
+async function waitForIdle(page: Page, timeout: number): Promise<void> {
+  try {
+    await page.waitForNetworkIdle({ timeout });
+  } catch {
+    // Continue when network idle cannot be reached.
+  }
+}
+
+async function fillOnRoot(
+  root: Page | Frame,
+  selector: string,
+  value: string,
+): Promise<boolean> {
+  try {
+    const element = await root.$(selector);
+    if (!element) {
+      return false;
+    }
+
+    await element.click({ clickCount: 3 });
+    await element.type(value, { delay: 20 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function clickOnRoot(
+  root: Page | Frame,
+  selector: string,
+): Promise<boolean> {
+  try {
+    const element = await root.$(selector);
+    if (!element) {
+      return false;
+    }
+
+    await element.click();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function navigateToLoginPage(
@@ -84,9 +122,7 @@ async function navigateToLoginPage(
         timeout: NAVIGATION_TIMEOUT_MS,
       });
 
-      await page
-        .waitForLoadState('networkidle', { timeout: 10_000 })
-        .catch(() => undefined);
+      await waitForIdle(page, 10_000);
 
       const hasEmail = await hasVisibleSelector(page, EMAIL_SELECTORS);
       const hasPassword = await hasVisibleSelector(page, PASSWORD_SELECTORS);
@@ -108,54 +144,12 @@ async function fillFirstAvailableSelector(
   selectors: string[],
   value: string,
 ): Promise<boolean> {
-  for (const selector of selectors) {
-    const locator = page.locator(selector).first();
-    try {
-      if ((await locator.count()) === 0) {
-        continue;
-      }
-      await locator.waitFor({
-        state: 'attached',
-        timeout: FIELD_LOOKUP_TIMEOUT_MS,
-      });
-      await locator.fill(value);
-      return true;
-    } catch {
-      try {
-        await locator.fill(value, {
-          force: true,
-          timeout: FIELD_LOOKUP_TIMEOUT_MS,
-        });
-        return true;
-      } catch {
-        // try next selector
-      }
-    }
-  }
+  const roots: Array<Page | Frame> = [page, ...page.frames()];
 
-  for (const frame of page.frames()) {
+  for (const root of roots) {
     for (const selector of selectors) {
-      const locator = frame.locator(selector).first();
-      try {
-        if ((await locator.count()) === 0) {
-          continue;
-        }
-        await locator.waitFor({
-          state: 'attached',
-          timeout: FIELD_LOOKUP_TIMEOUT_MS,
-        });
-        await locator.fill(value);
+      if (await fillOnRoot(root, selector, value)) {
         return true;
-      } catch {
-        try {
-          await locator.fill(value, {
-            force: true,
-            timeout: FIELD_LOOKUP_TIMEOUT_MS,
-          });
-          return true;
-        } catch {
-          // try next selector/frame
-        }
       }
     }
   }
@@ -167,51 +161,12 @@ async function clickFirstAvailableSelector(
   page: Page,
   selectors: string[],
 ): Promise<boolean> {
-  for (const selector of selectors) {
-    const locator = page.locator(selector).first();
-    try {
-      if ((await locator.count()) === 0) {
-        continue;
-      }
-      await locator.waitFor({
-        state: 'attached',
-        timeout: FIELD_LOOKUP_TIMEOUT_MS,
-      });
-      await locator.click();
-      return true;
-    } catch {
-      try {
-        await locator.click({ force: true, timeout: FIELD_LOOKUP_TIMEOUT_MS });
-        return true;
-      } catch {
-        // try next selector
-      }
-    }
-  }
+  const roots: Array<Page | Frame> = [page, ...page.frames()];
 
-  for (const frame of page.frames()) {
+  for (const root of roots) {
     for (const selector of selectors) {
-      const locator = frame.locator(selector).first();
-      try {
-        if ((await locator.count()) === 0) {
-          continue;
-        }
-        await locator.waitFor({
-          state: 'attached',
-          timeout: FIELD_LOOKUP_TIMEOUT_MS,
-        });
-        await locator.click();
+      if (await clickOnRoot(root, selector)) {
         return true;
-      } catch {
-        try {
-          await locator.click({
-            force: true,
-            timeout: FIELD_LOOKUP_TIMEOUT_MS,
-          });
-          return true;
-        } catch {
-          // try next selector/frame
-        }
       }
     }
   }
@@ -220,13 +175,13 @@ async function clickFirstAvailableSelector(
 }
 
 async function readLoginError(page: Page): Promise<string | null> {
-  const text = await page.locator('body').innerText();
+  const text = await page.$eval('body', (el) => el.textContent || '');
   const lines = text
     .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
+    .map((line: string) => line.trim())
+    .filter((line: string) => line.length > 0);
 
-  const matched = lines.find((line) =>
+  const matched = lines.find((line: string) =>
     /(invalid|incorrect|failed|unable|error|try again)/i.test(line),
   );
 
@@ -236,7 +191,9 @@ async function readLoginError(page: Page): Promise<string | null> {
 async function detectRoleFromUi(
   page: Page,
 ): Promise<AuthenticatedSession['userRole']> {
-  const text = (await page.locator('body').innerText()).toLowerCase();
+  const text = (
+    await page.$eval('body', (el) => el.textContent || '')
+  ).toLowerCase();
 
   if (text.includes('super admin')) {
     return 'super-admin';
@@ -276,45 +233,20 @@ async function performLoginFlow(
 
   logger.info(`Filling login form for domain: ${baseUrl}`);
 
-  await page
-    .waitForLoadState('networkidle', { timeout: NAVIGATION_TIMEOUT_MS })
-    .catch(() => undefined);
+  await waitForIdle(page, NAVIGATION_TIMEOUT_MS);
 
   logger.info('Attempting to fill login form fields');
 
-  const labelEmailFilled = await page
-    .getByLabel(/email/i)
-    .first()
-    .fill(email)
-    .then(() => true)
-    .catch(() => false);
-
-  const emailFilled =
-    labelEmailFilled ||
-    (await fillFirstAvailableSelector(page, EMAIL_SELECTORS, email)) ||
-    (await page
-      .getByPlaceholder(/gmail|email/i)
-      .first()
-      .fill(email)
-      .then(() => true)
-      .catch(() => false));
-
-  const labelPasswordFilled = await page
-    .getByLabel(/password/i)
-    .first()
-    .fill(password)
-    .then(() => true)
-    .catch(() => false);
-
-  const passwordFilled =
-    labelPasswordFilled ||
-    (await fillFirstAvailableSelector(page, PASSWORD_SELECTORS, password)) ||
-    (await page
-      .getByPlaceholder(/\*{3,}|password/i)
-      .first()
-      .fill(password)
-      .then(() => true)
-      .catch(() => false));
+  const emailFilled = await fillFirstAvailableSelector(
+    page,
+    EMAIL_SELECTORS,
+    email,
+  );
+  const passwordFilled = await fillFirstAvailableSelector(
+    page,
+    PASSWORD_SELECTORS,
+    password,
+  );
 
   logger.info(
     `Login page filled: email field - ${emailFilled}, password field - ${passwordFilled}`,
@@ -327,20 +259,22 @@ async function performLoginFlow(
     };
   }
 
-  const clicked =
-    (await clickFirstAvailableSelector(page, SUBMIT_SELECTORS)) ||
-    (await page
-      .getByRole('button', { name: /sign in|login|log in/i })
-      .first()
-      .click()
-      .then(() => true)
-      .catch(() => false));
+  const clicked = await clickFirstAvailableSelector(page, SUBMIT_SELECTORS);
 
   if (!clicked) {
     await page.keyboard.press('Enter');
   }
 
-  await page.waitForTimeout(1200);
+  try {
+    await page.waitForNavigation({
+      waitUntil: 'domcontentloaded',
+      timeout: NAVIGATION_TIMEOUT_MS,
+    });
+  } catch {
+    // Navigation can complete too quickly.
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 1200));
 
   const currentUrl = page.url();
   if (!currentUrl.includes('/login')) {
@@ -364,12 +298,11 @@ export async function testMemberLoungeLogin(
   password: string,
 ): Promise<MemberLoungeLoginResult> {
   const baseUrl = normalizeBaseUrl(memberLoungeUrl);
-  const browser = await chromium.launch({ headless: true });
+  const browser = await puppeteer.launch({ headless: false, slowMo: 50 });
 
   try {
-    const context = await browser.newContext();
-    const page = await context.newPage();
-
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1280, height: 800 });
     return await performLoginFlow(page, baseUrl, email, password);
   } finally {
     await browser.close();
@@ -381,17 +314,17 @@ export async function withAuthenticatedSession<T>(
   email: string,
   password: string,
   action: (ctx: {
-    context: BrowserContext;
+    browser: Browser;
     page: Page;
     session: AuthenticatedSession;
   }) => Promise<T>,
 ): Promise<T> {
   const baseUrl = normalizeBaseUrl(memberLoungeUrl);
-  const browser = await chromium.launch({ headless: true });
+  const browser = await puppeteer.launch({ headless: false, slowMo: 50 });
 
   try {
-    const context = await browser.newContext();
-    const page = await context.newPage();
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1280, height: 800 });
 
     const loginResult = await performLoginFlow(page, baseUrl, email, password);
     if (!loginResult.success) {
@@ -401,7 +334,7 @@ export async function withAuthenticatedSession<T>(
     const role = await detectRoleFromUi(page);
 
     return await action({
-      context,
+      browser,
       page,
       session: {
         normalizedBaseUrl: baseUrl,

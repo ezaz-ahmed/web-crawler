@@ -20,6 +20,9 @@ export const envSchema = z.object({
     .min(1)
     .transform((keys) => keys.split(',')),
 
+  // Webhooks
+  WEBHOOK_SECRET: z.string().optional(),
+
   // Crawler settings
   USER_AGENT: z.string().default('WebCrawlerBot/1.0'),
   MAX_CONCURRENT_REQUESTS: z.string().default('5').transform(Number),

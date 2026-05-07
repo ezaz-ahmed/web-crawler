@@ -318,6 +318,9 @@ export interface AppConfig {
   auth: {
     allowedApiKeys: string[];
   };
+  webhooks: {
+    secret?: string;
+  };
   crawler: {
     userAgent: string;
     maxConcurrentRequests: number;

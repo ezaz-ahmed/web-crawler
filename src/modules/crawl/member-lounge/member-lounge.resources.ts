@@ -1,4 +1,4 @@
-import type { Page } from 'playwright';
+import type { Page } from 'puppeteer';
 import * as cheerio from 'cheerio';
 import type { MemberLoungeResource } from '../../../types.js';
 import { buildMarkdownByFilename } from './member-lounge.files.js';
@@ -115,7 +115,7 @@ export async function crawlResources(
       purchasedLookup.has(normalizeKey(resource.url));
 
     const fileMarkdownByName = await buildMarkdownByFilename(
-      page.context(),
+      page,
       resource.files.map((file) => ({ name: file.name, url: file.url })),
       instructions,
     );
@@ -147,7 +147,7 @@ export async function crawlAdminResources(
 
   for (const resource of resources) {
     const fileMarkdownByName = await buildMarkdownByFilename(
-      page.context(),
+      page,
       resource.files.map((file) => ({ name: file.name, url: file.url })),
       instructions,
     );

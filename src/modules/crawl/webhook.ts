@@ -1,7 +1,26 @@
 import type { WebhookPayload } from '../../types.js';
+import { config } from '../../config/env.js';
+import { createHmac } from 'node:crypto';
 
 const MAX_ATTEMPTS = 3;
 const WEBHOOK_TIMEOUT_MS = 10_000;
+
+function buildWebhookHeaders(body: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (!config.webhooks.secret) {
+    return headers;
+  }
+
+  const signature = createHmac('sha256', config.webhooks.secret)
+    .update(body)
+    .digest('hex');
+
+  headers['X-Webhook-Signature'] = `sha256=${signature}`;
+  return headers;
+}
 
 /**
  * Attempt to deliver a webhook payload to the given URL.
@@ -13,6 +32,7 @@ export async function sendWebhook(
   payload: WebhookPayload,
 ): Promise<void> {
   const body = JSON.stringify(payload);
+  const headers = buildWebhookHeaders(body);
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const controller = new AbortController();
@@ -21,7 +41,7 @@ export async function sendWebhook(
     try {
       const res = await fetch(callbackUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body,
         signal: controller.signal,
       });
