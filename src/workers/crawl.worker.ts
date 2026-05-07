@@ -4,6 +4,7 @@ import { enqueueCrawlJob } from '../queue.js';
 import { redisConnection } from '../plugins/redis.js';
 import type {
   CrawlJobData,
+  CsaeJobData,
   MemberLoungeJobData,
   MultiPageResult,
   Priority,
@@ -16,6 +17,7 @@ import { parseSitemap } from '../modules/crawl/crawlers/sitemap.js';
 import { crawlSingleUrl } from '../modules/crawl/crawlers/single-url.js';
 import { crawlWebsite } from '../modules/crawl/crawlers/website.js';
 import { crawlMemberLounge } from '../modules/crawl/member-lounge/member-lounge.crawler.js';
+import { crawlCsae } from '../modules/crawl/csae/csae.crawler.js';
 import {
   convertPagesToMarkdown,
   convertToMarkdown,
@@ -247,6 +249,42 @@ async function processMemberLoungeJob(
   });
 }
 
+async function processCsaeJob(jobData: CsaeJobData): Promise<void> {
+  console.log(`Processing CSAE job: ${jobData.jobId}`);
+
+  updateJobProgress(jobData.jobId, 10);
+  dispatchWebhook(jobData.callbackUrl, {
+    event: 'job.progress',
+    jobId: jobData.jobId,
+    type: 'csae',
+    status: 'processing',
+    progress: 10,
+    timestamp: new Date().toISOString(),
+  });
+
+  const result = await crawlCsae({
+    csaeUrl: jobData.csaeUrl,
+    email: jobData.email,
+    password: jobData.password,
+    crawlKind: jobData.crawlKind,
+    instructions: jobData.instructions,
+  });
+
+  updateJobProgress(jobData.jobId, 90);
+  setJobResult(jobData.jobId, result);
+  updateJobProgress(jobData.jobId, 100);
+  updateJobStatus(jobData.jobId, 'completed');
+
+  dispatchWebhook(jobData.callbackUrl, {
+    event: 'job.completed',
+    jobId: jobData.jobId,
+    type: 'csae',
+    status: 'completed',
+    result,
+    timestamp: new Date().toISOString(),
+  });
+}
+
 async function processJob(job: Job<CrawlJobData>): Promise<void> {
   const jobData = job.data;
 
@@ -276,6 +314,9 @@ async function processJob(job: Job<CrawlJobData>): Promise<void> {
         break;
       case 'member-lounge':
         await processMemberLoungeJob(jobData as MemberLoungeJobData);
+        break;
+      case 'csae':
+        await processCsaeJob(jobData as CsaeJobData);
         break;
       default:
         throw new Error(

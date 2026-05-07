@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid';
 import { enqueueCrawlJob } from '../../queue.js';
 import type {
+  CsaeCrawlRequest,
   EnqueueResponse,
   MemberLoungeCrawlRequest,
   Priority,
@@ -194,6 +195,51 @@ export async function enqueueMemberLoungeCrawl(
     jobId,
     status: 'queued',
     estimatedTime: estimateTime('member-lounge', body),
+  };
+}
+
+export async function enqueueCsaeCrawl(
+  body: CsaeCrawlRequest,
+): Promise<EnqueueResponse> {
+  const csaeUrl = body.csaeUrl ?? body.memberLoungeUrl;
+  if (!csaeUrl) {
+    throw new Error('csaeUrl or memberLoungeUrl is required');
+  }
+
+  const jobId = nanoid();
+
+  createJobState(jobId, 'csae');
+
+  await enqueueCrawlJob(
+    {
+      type: 'csae',
+      jobId,
+      csaeUrl,
+      crawlKind: body.type,
+      email: body.email,
+      password: body.password,
+      priority: body.priority,
+      instructions: body.instructions,
+      includePatterns: body.includePatterns,
+      excludePatterns: body.excludePatterns,
+      callbackUrl: body.callbackUrl,
+      createdAt: new Date(),
+    },
+    body.priority as Priority,
+  );
+
+  dispatchWebhook(body.callbackUrl, {
+    event: 'job.queued',
+    jobId,
+    type: 'csae',
+    status: 'queued',
+    timestamp: new Date().toISOString(),
+  });
+
+  return {
+    jobId,
+    status: 'queued',
+    estimatedTime: body.type === 'resource' ? '4-8 minutes' : '2-5 minutes',
   };
 }
 

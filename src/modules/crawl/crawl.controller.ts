@@ -1,18 +1,21 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type {
+  CsaeCrawlRequest,
   MemberLoungeCrawlRequest,
   SitemapCrawlRequest,
   UrlCrawlRequest,
   WebsiteCrawlRequest,
 } from '../../types.js';
 import {
+  csaeCrawlSchema,
   memberLoungeCrawlSchema,
   sitemapCrawlSchema,
   urlCrawlSchema,
   websiteCrawlSchema,
 } from './crawl.schema.js';
 import {
+  enqueueCsaeCrawl,
   enqueueMemberLoungeCrawl,
   enqueueSitemapCrawl,
   enqueueUrlCrawl,
@@ -20,8 +23,8 @@ import {
   getCrawlStatus,
 } from './crawl.service.js';
 import { testMemberLoungeLogin } from './member-lounge/member-lounge.auth.js';
+import { testCsaeLogin } from './csae/csae.auth.js';
 import { logger } from '../../utils/logger.js';
-import { logConfig } from '../../config.js';
 
 function handleValidationError(error: unknown, reply: FastifyReply): void {
   if (error instanceof z.ZodError) {
@@ -105,6 +108,61 @@ export async function createMemberLoungeCrawl(
     }
 
     const enqueueResponse = await enqueueMemberLoungeCrawl(body);
+    reply.code(200).send({
+      loginStatus: 'successful',
+      loginMessage: loginResult.message,
+      jobId: enqueueResponse.jobId,
+      type: body.type,
+      status: enqueueResponse.status,
+      estimatedTime: enqueueResponse.estimatedTime,
+    });
+  } catch (error) {
+    handleValidationError(error, reply);
+  }
+}
+
+export async function createCsaeCrawl(
+  request: FastifyRequest<{ Body: CsaeCrawlRequest }>,
+  reply: FastifyReply,
+): Promise<void> {
+  try {
+    const body = csaeCrawlSchema.parse(request.body);
+    const csaeUrl = body.csaeUrl ?? body.memberLoungeUrl;
+
+    if (!csaeUrl) {
+      reply.code(400).send({
+        error: 'Validation Error',
+        details: [
+          {
+            path: ['memberLoungeUrl'],
+            message: 'Required',
+          },
+        ],
+      });
+      return;
+    }
+
+    logger.info(`CSAE crawl requested for ${csaeUrl} type=${body.type}`);
+
+    const loginResult = await testCsaeLogin(csaeUrl, body.email, body.password);
+
+    logger.info(
+      `CSAE login result for ${csaeUrl}: ${loginResult.success ? 'success' : 'failure'}`,
+    );
+
+    if (!loginResult.success) {
+      reply.code(401).send({
+        error: 'Authentication Failed',
+        message: loginResult.message,
+        loginStatus: 'failed',
+      });
+      return;
+    }
+
+    const enqueueResponse = await enqueueCsaeCrawl({
+      ...body,
+      csaeUrl,
+    });
     reply.code(200).send({
       loginStatus: 'successful',
       loginMessage: loginResult.message,

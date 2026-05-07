@@ -5,8 +5,14 @@
 export type Priority = 'low' | 'medium' | 'high';
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed';
 export type ContentType = 'html' | 'pdf' | 'docx' | 'unsupported';
-export type CrawlType = 'url' | 'website' | 'sitemap' | 'member-lounge';
+export type CrawlType =
+  | 'url'
+  | 'website'
+  | 'sitemap'
+  | 'member-lounge'
+  | 'csae';
 export type MemberLoungeCrawlKind = 'event' | 'resource' | 'discussion';
+export type CsaeCrawlKind = 'event' | 'resource' | 'discussion';
 
 // ============================================================================
 // Request Types
@@ -37,6 +43,14 @@ export interface SitemapCrawlRequest extends BaseRequestParams {
 export interface MemberLoungeCrawlRequest extends BaseRequestParams {
   memberLoungeUrl: string;
   type: MemberLoungeCrawlKind;
+  email: string;
+  password: string;
+}
+
+export interface CsaeCrawlRequest extends BaseRequestParams {
+  csaeUrl?: string;
+  memberLoungeUrl?: string;
+  type: CsaeCrawlKind;
   email: string;
   password: string;
 }
@@ -76,11 +90,20 @@ export interface MemberLoungeJobData extends BaseJobData {
   password: string;
 }
 
+export interface CsaeJobData extends BaseJobData {
+  type: 'csae';
+  csaeUrl: string;
+  crawlKind: CsaeCrawlKind;
+  email: string;
+  password: string;
+}
+
 export type CrawlJobData =
   | UrlJobData
   | WebsiteJobData
   | SitemapJobData
-  | MemberLoungeJobData;
+  | MemberLoungeJobData
+  | CsaeJobData;
 
 // ============================================================================
 // Job State Types
@@ -190,10 +213,37 @@ export type MemberLoungeResult =
   | MemberLoungeResourceResult
   | MemberLoungeDiscussionResult;
 
+export interface CsaeResultBase {
+  csaeUrl: string;
+  crawlKind: CsaeCrawlKind;
+  warnings?: string[];
+}
+
+export interface CsaeEventResult extends CsaeResultBase {
+  crawlKind: 'event';
+  events: MemberLoungeEvent[];
+}
+
+export interface CsaeResourceResult extends CsaeResultBase {
+  crawlKind: 'resource';
+  resources: MemberLoungeResource[];
+}
+
+export interface CsaeDiscussionResult extends CsaeResultBase {
+  crawlKind: 'discussion';
+  discussions: MemberLoungeDiscussion[];
+}
+
+export type CsaeResult =
+  | CsaeEventResult
+  | CsaeResourceResult
+  | CsaeDiscussionResult;
+
 export type CrawlResult =
   | SingleUrlResult
   | MultiPageResult
-  | MemberLoungeResult;
+  | MemberLoungeResult
+  | CsaeResult;
 
 // ============================================================================
 // Webhook Types
