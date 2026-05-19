@@ -16,6 +16,7 @@ export const envSchema = z.object({
 
   // Authentication
   ALLOWED_API_KEYS: z.string().min(1),
+  ALLOWED_CRAWL_DOMAINS: z.string().default(''),
 
   // Crawler settings
   USER_AGENT: z.string().default('WebCrawlerBot/1.0'),

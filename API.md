@@ -17,6 +17,16 @@ Authorization: Bearer <your-api-key>
 API keys are configured via `ALLOWED_API_KEYS` as comma-separated
 `api_key:webhook_secret` pairs.
 
+Crawl targets are restricted via `ALLOWED_CRAWL_DOMAINS` as comma-separated exact hostnames (no wildcards).
+
+Example:
+
+```env
+ALLOWED_CRAWL_DOMAINS=example.com,docs.example.com,wikipedia.org
+```
+
+If `ALLOWED_CRAWL_DOMAINS` is empty, all crawl target URLs are rejected.
+
 Example:
 
 ```env
@@ -83,6 +93,12 @@ Crawl a single URL and convert its content to AI-processed markdown.
 | `excludePatterns` | `string[]`                        | No       | —          | URL patterns to exclude                                  |
 | `callbackUrl`     | `string` (valid URL)              | No       | —          | URL to receive a webhook when the job completes or fails |
 
+Notes:
+
+- Only `http` and `https` are accepted for crawl target URLs.
+- Hostname must exactly match an entry in `ALLOWED_CRAWL_DOMAINS`.
+- Local/internal targets are always blocked (for example: `localhost`, `127.0.0.1`, `10.x.x.x`, `192.168.x.x`, `172.16.x.x-172.31.x.x`, `169.254.169.254`).
+
 #### Example Request
 
 ```bash
@@ -142,6 +158,12 @@ Recursively crawl a website up to a specified depth and page limit.
 | `includePatterns` | `string[]`                        | No       | —          | URL patterns to include                                  |
 | `excludePatterns` | `string[]`                        | No       | —          | URL patterns to exclude                                  |
 | `callbackUrl`     | `string` (valid URL)              | No       | —          | URL to receive a webhook when the job completes or fails |
+
+Notes:
+
+- Only `http` and `https` are accepted for crawl target URLs.
+- Hostname must exactly match an entry in `ALLOWED_CRAWL_DOMAINS`.
+- Local/internal targets are always blocked.
 
 #### Example Request
 
@@ -205,6 +227,12 @@ Crawl all URLs found in a sitemap XML file.
 | `includePatterns` | `string[]`                        | No       | —          | URL patterns to include                                  |
 | `excludePatterns` | `string[]`                        | No       | —          | URL patterns to exclude                                  |
 | `callbackUrl`     | `string` (valid URL)              | No       | —          | URL to receive a webhook when the job completes or fails |
+
+Notes:
+
+- Only `http` and `https` are accepted for crawl target URLs.
+- Hostname must exactly match an entry in `ALLOWED_CRAWL_DOMAINS`.
+- Local/internal targets are always blocked.
 
 #### Example Request
 

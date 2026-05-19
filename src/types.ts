@@ -330,5 +330,6 @@ export interface AppConfig {
     maxConcurrentRequests: number;
     requestTimeout: number;
     rateLimitPerDomain: number; // milliseconds between requests
+    allowedDomains: string[];
   };
 }
