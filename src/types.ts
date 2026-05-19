@@ -61,6 +61,7 @@ export interface CsaeCrawlRequest extends BaseRequestParams {
 export interface BaseJobData extends BaseRequestParams {
   type: CrawlType;
   jobId: string;
+  webhookSecret?: string;
   createdAt: Date;
 }
 
@@ -319,10 +320,10 @@ export interface AppConfig {
     model: string;
   };
   auth: {
-    allowedApiKeys: string[];
-  };
-  webhooks: {
-    secret?: string;
+    apiKeys: Array<{
+      apiKey: string;
+      webhookSecret: string;
+    }>;
   };
   crawler: {
     userAgent: string;

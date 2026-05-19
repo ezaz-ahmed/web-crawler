@@ -15,13 +15,7 @@ export const envSchema = z.object({
   OPENAI_MODEL: z.string().default('gpt-4o-mini'),
 
   // Authentication
-  ALLOWED_API_KEYS: z
-    .string()
-    .min(1)
-    .transform((keys) => keys.split(',')),
-
-  // Webhooks
-  WEBHOOK_SECRET: z.string().optional(),
+  ALLOWED_API_KEYS: z.string().min(1),
 
   // Crawler settings
   USER_AGENT: z.string().default('WebCrawlerBot/1.0'),

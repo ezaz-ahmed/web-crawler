@@ -43,7 +43,7 @@ export async function createUrlCrawl(
 ): Promise<void> {
   try {
     const body = urlCrawlSchema.parse(request.body);
-    const response = await enqueueUrlCrawl(body);
+    const response = await enqueueUrlCrawl(body, request.webhookSecret);
     reply.code(200).send(response);
   } catch (error) {
     handleValidationError(error, reply);
@@ -56,7 +56,7 @@ export async function createWebsiteCrawl(
 ): Promise<void> {
   try {
     const body = websiteCrawlSchema.parse(request.body);
-    const response = await enqueueWebsiteCrawl(body);
+    const response = await enqueueWebsiteCrawl(body, request.webhookSecret);
     reply.code(200).send(response);
   } catch (error) {
     handleValidationError(error, reply);
@@ -69,7 +69,7 @@ export async function createSitemapCrawl(
 ): Promise<void> {
   try {
     const body = sitemapCrawlSchema.parse(request.body);
-    const response = await enqueueSitemapCrawl(body);
+    const response = await enqueueSitemapCrawl(body, request.webhookSecret);
     reply.code(200).send(response);
   } catch (error) {
     handleValidationError(error, reply);
@@ -106,7 +106,10 @@ export async function createMemberLoungeCrawl(
       return;
     }
 
-    const enqueueResponse = await enqueueMemberLoungeCrawl(body);
+    const enqueueResponse = await enqueueMemberLoungeCrawl(
+      body,
+      request.webhookSecret,
+    );
     reply.code(200).send({
       loginStatus: 'successful',
       loginMessage: loginResult.message,

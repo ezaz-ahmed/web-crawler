@@ -20,7 +20,7 @@ Edit `.env` and add your credentials:
 ```env
 # Required immediately
 OPENAI_API_KEY=sk-your-openai-api-key-here
-ALLOWED_API_KEYS=test-key-123
+ALLOWED_API_KEYS=test-key-123:whsec_test_key_123
 ```
 
 ### 3. Start Redis
@@ -111,7 +111,7 @@ Wait 1-2 minutes for completion. When done, you'll see:
 → Add `-H "Authorization: Bearer test-key-123"` to your curl command
 
 **Error: "Invalid API key"**
-→ Check that `ALLOWED_API_KEYS` in `.env` matches your Bearer token
+→ Check that `ALLOWED_API_KEYS` includes your Bearer token in `api_key:webhook_secret` format
 
 **Error: "Redis connection refused"**
 → Run `docker-compose up -d` to start Redis

@@ -1,6 +1,13 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { config } from '../config.js';
 
+declare module 'fastify' {
+  interface FastifyRequest {
+    apiKey?: string;
+    webhookSecret?: string;
+  }
+}
+
 /**
  * Authentication middleware for API key verification
  */
@@ -28,8 +35,12 @@ export async function authenticateApiKey(
     });
   }
 
+  const apiKeyConfig = config.auth.apiKeys.find(
+    (entry) => entry.apiKey === token,
+  );
+
   // Check if API key is valid
-  if (!config.auth.allowedApiKeys.includes(token)) {
+  if (!apiKeyConfig) {
     return reply.code(401).send({
       error: 'Unauthorized',
       message: 'Invalid API key',
@@ -37,4 +48,6 @@ export async function authenticateApiKey(
   }
 
   // API key is valid, continue
+  request.apiKey = apiKeyConfig.apiKey;
+  request.webhookSecret = apiKeyConfig.webhookSecret;
 }

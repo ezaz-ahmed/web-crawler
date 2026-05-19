@@ -14,7 +14,14 @@ All `/crawl/*` endpoints (except `/crawl/status/:jobId`) require a Bearer token 
 Authorization: Bearer <your-api-key>
 ```
 
-API keys are configured via the `ALLOWED_API_KEYS` environment variable (comma-separated).
+API keys are configured via `ALLOWED_API_KEYS` as comma-separated
+`api_key:webhook_secret` pairs.
+
+Example:
+
+```env
+ALLOWED_API_KEYS=team_a_key:whsec_team_a,team_b_key:whsec_team_b
+```
 
 ### Authentication Errors
 
@@ -395,8 +402,12 @@ If `callbackUrl` is provided in a crawl request, the server sends asynchronous w
 
 - Method: `POST`
 - Header: `Content-Type: application/json`
+- Header: `X-Webhook-Timestamp: <unix-seconds>`
+- Header: `X-Webhook-Signature: v1=<hmac_sha256(timestamp + "." + raw_body)>`
 - Timeout per attempt: `10s`
 - Retries: up to `3` attempts with exponential backoff (`1s`, `2s`, `4s`)
+- Signature secret: webhook secret paired to the caller's API key
+- Replay protection: recipients must reject timestamps older/newer than `5 minutes`
 
 Webhook delivery failures are logged but do not fail crawl jobs.
 
@@ -427,19 +438,82 @@ Field notes:
 - `result`: present only for `job.completed`
 - `error`: present only for `job.failed`
 
+### Recipient Verification (Client-Side)
+
+Recipients should verify both timestamp freshness and signature before accepting the payload.
+
+```ts
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import express from 'express';
+
+const app = express();
+
+// Use raw body for signature verification.
+app.use(
+  express.raw({
+    type: 'application/json',
+  }),
+);
+
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET!;
+const TOLERANCE_SECONDS = 5 * 60;
+
+function verifyWebhook(
+  rawBody: Buffer,
+  signatureHeader: string | undefined,
+  timestampHeader: string | undefined,
+): boolean {
+  if (!signatureHeader || !timestampHeader) return false;
+
+  const timestamp = Number.parseInt(timestampHeader, 10);
+  if (!Number.isFinite(timestamp)) return false;
+
+  const ageSeconds = Math.abs(Math.floor(Date.now() / 1000) - timestamp);
+  if (ageSeconds > TOLERANCE_SECONDS) return false;
+
+  const payload = `${timestampHeader}.${rawBody.toString('utf8')}`;
+  const expected = createHmac('sha256', WEBHOOK_SECRET)
+    .update(payload)
+    .digest('hex');
+
+  const provided = signatureHeader.startsWith('v1=')
+    ? signatureHeader.slice(3)
+    : signatureHeader;
+
+  const expectedBuffer = Buffer.from(expected);
+  const providedBuffer = Buffer.from(provided);
+  if (expectedBuffer.length !== providedBuffer.length) return false;
+
+  return timingSafeEqual(expectedBuffer, providedBuffer);
+}
+
+app.post('/webhook/crawl', (req, res) => {
+  const signature = req.header('X-Webhook-Signature');
+  const timestamp = req.header('X-Webhook-Timestamp');
+
+  if (!verifyWebhook(req.body, signature, timestamp)) {
+    return res.status(401).send({ error: 'Invalid webhook signature' });
+  }
+
+  const event = JSON.parse(req.body.toString('utf8'));
+  // Process event safely here.
+  return res.status(200).send({ ok: true });
+});
+```
+
 ---
 
 ## Environment Variables
 
-| Variable                  | Required | Default             | Description                             |
-| ------------------------- | -------- | ------------------- | --------------------------------------- |
-| `PORT`                    | No       | `3000`              | Server port                             |
-| `NODE_ENV`                | No       | `development`       | `development` \| `production` \| `test` |
-| `REDIS_URL`               | **Yes**  | —                   | Redis connection URL                    |
-| `OPENAI_API_KEY`          | **Yes**  | —                   | OpenAI API key                          |
-| `OPENAI_MODEL`            | No       | `gpt-4o-mini`       | OpenAI model to use                     |
-| `ALLOWED_API_KEYS`        | **Yes**  | —                   | Comma-separated list of valid API keys  |
-| `USER_AGENT`              | No       | `WebCrawlerBot/1.0` | Crawler user agent string               |
-| `MAX_CONCURRENT_REQUESTS` | No       | `5`                 | Max concurrent fetch requests           |
-| `REQUEST_TIMEOUT`         | No       | `30000`             | Request timeout in milliseconds         |
-| `RATE_LIMIT_PER_DOMAIN`   | No       | `1000`              | Rate limit delay per domain in ms       |
+| Variable                  | Required | Default             | Description                                    |
+| ------------------------- | -------- | ------------------- | ---------------------------------------------- |
+| `PORT`                    | No       | `3000`              | Server port                                    |
+| `NODE_ENV`                | No       | `development`       | `development` \| `production` \| `test`        |
+| `REDIS_URL`               | **Yes**  | —                   | Redis connection URL                           |
+| `OPENAI_API_KEY`          | **Yes**  | —                   | OpenAI API key                                 |
+| `OPENAI_MODEL`            | No       | `gpt-4o-mini`       | OpenAI model to use                            |
+| `ALLOWED_API_KEYS`        | **Yes**  | —                   | Comma-separated `api_key:webhook_secret` pairs |
+| `USER_AGENT`              | No       | `WebCrawlerBot/1.0` | Crawler user agent string                      |
+| `MAX_CONCURRENT_REQUESTS` | No       | `5`                 | Max concurrent fetch requests                  |
+| `REQUEST_TIMEOUT`         | No       | `30000`             | Request timeout in milliseconds                |
+| `RATE_LIMIT_PER_DOMAIN`   | No       | `1000`              | Rate limit delay per domain in ms              |

@@ -47,6 +47,7 @@ function estimateTime(
 
 export async function enqueueUrlCrawl(
   body: UrlCrawlRequest,
+  webhookSecret?: string,
 ): Promise<EnqueueResponse> {
   const jobId = nanoid();
 
@@ -62,18 +63,23 @@ export async function enqueueUrlCrawl(
       includePatterns: body.includePatterns,
       excludePatterns: body.excludePatterns,
       callbackUrl: body.callbackUrl,
+      webhookSecret,
       createdAt: new Date(),
     },
     body.priority as Priority,
   );
 
-  dispatchWebhook(body.callbackUrl, {
-    event: 'job.queued',
-    jobId,
-    type: 'url',
-    status: 'queued',
-    timestamp: new Date().toISOString(),
-  });
+  dispatchWebhook(
+    body.callbackUrl,
+    {
+      event: 'job.queued',
+      jobId,
+      type: 'url',
+      status: 'queued',
+      timestamp: new Date().toISOString(),
+    },
+    webhookSecret,
+  );
 
   return {
     jobId,
@@ -84,6 +90,7 @@ export async function enqueueUrlCrawl(
 
 export async function enqueueWebsiteCrawl(
   body: WebsiteCrawlRequest,
+  webhookSecret?: string,
 ): Promise<EnqueueResponse> {
   const jobId = nanoid();
 
@@ -101,18 +108,23 @@ export async function enqueueWebsiteCrawl(
       includePatterns: body.includePatterns,
       excludePatterns: body.excludePatterns,
       callbackUrl: body.callbackUrl,
+      webhookSecret,
       createdAt: new Date(),
     },
     body.priority as Priority,
   );
 
-  dispatchWebhook(body.callbackUrl, {
-    event: 'job.queued',
-    jobId,
-    type: 'website',
-    status: 'queued',
-    timestamp: new Date().toISOString(),
-  });
+  dispatchWebhook(
+    body.callbackUrl,
+    {
+      event: 'job.queued',
+      jobId,
+      type: 'website',
+      status: 'queued',
+      timestamp: new Date().toISOString(),
+    },
+    webhookSecret,
+  );
 
   return {
     jobId,
@@ -123,6 +135,7 @@ export async function enqueueWebsiteCrawl(
 
 export async function enqueueSitemapCrawl(
   body: SitemapCrawlRequest,
+  webhookSecret?: string,
 ): Promise<EnqueueResponse> {
   const jobId = nanoid();
 
@@ -138,18 +151,23 @@ export async function enqueueSitemapCrawl(
       includePatterns: body.includePatterns,
       excludePatterns: body.excludePatterns,
       callbackUrl: body.callbackUrl,
+      webhookSecret,
       createdAt: new Date(),
     },
     body.priority as Priority,
   );
 
-  dispatchWebhook(body.callbackUrl, {
-    event: 'job.queued',
-    jobId,
-    type: 'sitemap',
-    status: 'queued',
-    timestamp: new Date().toISOString(),
-  });
+  dispatchWebhook(
+    body.callbackUrl,
+    {
+      event: 'job.queued',
+      jobId,
+      type: 'sitemap',
+      status: 'queued',
+      timestamp: new Date().toISOString(),
+    },
+    webhookSecret,
+  );
 
   return {
     jobId,
@@ -160,6 +178,7 @@ export async function enqueueSitemapCrawl(
 
 export async function enqueueMemberLoungeCrawl(
   body: MemberLoungeCrawlRequest,
+  webhookSecret?: string,
 ): Promise<EnqueueResponse> {
   const jobId = nanoid();
 
@@ -178,18 +197,23 @@ export async function enqueueMemberLoungeCrawl(
       includePatterns: body.includePatterns,
       excludePatterns: body.excludePatterns,
       callbackUrl: body.callbackUrl,
+      webhookSecret,
       createdAt: new Date(),
     },
     body.priority as Priority,
   );
 
-  dispatchWebhook(body.callbackUrl, {
-    event: 'job.queued',
-    jobId,
-    type: 'member-lounge',
-    status: 'queued',
-    timestamp: new Date().toISOString(),
-  });
+  dispatchWebhook(
+    body.callbackUrl,
+    {
+      event: 'job.queued',
+      jobId,
+      type: 'member-lounge',
+      status: 'queued',
+      timestamp: new Date().toISOString(),
+    },
+    webhookSecret,
+  );
 
   return {
     jobId,
@@ -200,6 +224,7 @@ export async function enqueueMemberLoungeCrawl(
 
 export async function enqueueCsaeCrawl(
   body: CsaeCrawlRequest,
+  webhookSecret?: string,
 ): Promise<EnqueueResponse> {
   const csaeUrl = body.csaeUrl;
   if (!csaeUrl) {
@@ -223,18 +248,23 @@ export async function enqueueCsaeCrawl(
       includePatterns: body.includePatterns,
       excludePatterns: body.excludePatterns,
       callbackUrl: body.callbackUrl,
+      webhookSecret,
       createdAt: new Date(),
     },
     body.priority as Priority,
   );
 
-  dispatchWebhook(body.callbackUrl, {
-    event: 'job.queued',
-    jobId,
-    type: 'csae',
-    status: 'queued',
-    timestamp: new Date().toISOString(),
-  });
+  dispatchWebhook(
+    body.callbackUrl,
+    {
+      event: 'job.queued',
+      jobId,
+      type: 'csae',
+      status: 'queued',
+      timestamp: new Date().toISOString(),
+    },
+    webhookSecret,
+  );
 
   return {
     jobId,

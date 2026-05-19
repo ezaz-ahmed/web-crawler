@@ -56,14 +56,18 @@ async function processUrlJob(jobData: UrlJobData): Promise<void> {
 
   setJobResult(jobData.jobId, result);
   updateJobStatus(jobData.jobId, 'completed');
-  dispatchWebhook(jobData.callbackUrl, {
-    event: 'job.completed',
-    jobId: jobData.jobId,
-    type: 'url',
-    status: 'completed',
-    result,
-    timestamp: new Date().toISOString(),
-  });
+  dispatchWebhook(
+    jobData.callbackUrl,
+    {
+      event: 'job.completed',
+      jobId: jobData.jobId,
+      type: 'url',
+      status: 'completed',
+      result,
+      timestamp: new Date().toISOString(),
+    },
+    jobData.webhookSecret,
+  );
 }
 
 async function processWebsiteJob(jobData: WebsiteJobData): Promise<void> {
@@ -83,14 +87,18 @@ async function processWebsiteJob(jobData: WebsiteJobData): Promise<void> {
       const bucket = Math.floor(progress / 5) * 5;
       if (bucket > lastReportedProgress) {
         lastReportedProgress = bucket;
-        dispatchWebhook(jobData.callbackUrl, {
-          event: 'job.progress',
-          jobId: jobData.jobId,
-          type: 'website',
-          status: 'processing',
-          progress,
-          timestamp: new Date().toISOString(),
-        });
+        dispatchWebhook(
+          jobData.callbackUrl,
+          {
+            event: 'job.progress',
+            jobId: jobData.jobId,
+            type: 'website',
+            status: 'processing',
+            progress,
+            timestamp: new Date().toISOString(),
+          },
+          jobData.webhookSecret,
+        );
       }
     },
   );
@@ -115,14 +123,18 @@ async function processWebsiteJob(jobData: WebsiteJobData): Promise<void> {
       const bucket = Math.floor(progress / 5) * 5;
       if (bucket > lastReportedProgress) {
         lastReportedProgress = bucket;
-        dispatchWebhook(jobData.callbackUrl, {
-          event: 'job.progress',
-          jobId: jobData.jobId,
-          type: 'website',
-          status: 'processing',
-          progress,
-          timestamp: new Date().toISOString(),
-        });
+        dispatchWebhook(
+          jobData.callbackUrl,
+          {
+            event: 'job.progress',
+            jobId: jobData.jobId,
+            type: 'website',
+            status: 'processing',
+            progress,
+            timestamp: new Date().toISOString(),
+          },
+          jobData.webhookSecret,
+        );
       }
     },
   );
@@ -142,14 +154,18 @@ async function processWebsiteJob(jobData: WebsiteJobData): Promise<void> {
   setJobResult(jobData.jobId, result);
   updateJobProgress(jobData.jobId, 100);
   updateJobStatus(jobData.jobId, 'completed');
-  dispatchWebhook(jobData.callbackUrl, {
-    event: 'job.completed',
-    jobId: jobData.jobId,
-    type: 'website',
-    status: 'completed',
-    result,
-    timestamp: new Date().toISOString(),
-  });
+  dispatchWebhook(
+    jobData.callbackUrl,
+    {
+      event: 'job.completed',
+      jobId: jobData.jobId,
+      type: 'website',
+      status: 'completed',
+      result,
+      timestamp: new Date().toISOString(),
+    },
+    jobData.webhookSecret,
+  );
 }
 
 async function processSitemapJob(jobData: SitemapJobData): Promise<void> {
@@ -200,14 +216,18 @@ async function processSitemapJob(jobData: SitemapJobData): Promise<void> {
 
   setJobResult(jobData.jobId, result);
   updateJobStatus(jobData.jobId, 'completed');
-  dispatchWebhook(jobData.callbackUrl, {
-    event: 'job.completed',
-    jobId: jobData.jobId,
-    type: 'sitemap',
-    status: 'completed',
-    result,
-    timestamp: new Date().toISOString(),
-  });
+  dispatchWebhook(
+    jobData.callbackUrl,
+    {
+      event: 'job.completed',
+      jobId: jobData.jobId,
+      type: 'sitemap',
+      status: 'completed',
+      result,
+      timestamp: new Date().toISOString(),
+    },
+    jobData.webhookSecret,
+  );
 }
 
 async function processMemberLoungeJob(
@@ -216,14 +236,18 @@ async function processMemberLoungeJob(
   console.log(`Processing member lounge job: ${jobData.jobId}`);
 
   updateJobProgress(jobData.jobId, 10);
-  dispatchWebhook(jobData.callbackUrl, {
-    event: 'job.progress',
-    jobId: jobData.jobId,
-    type: 'member-lounge',
-    status: 'processing',
-    progress: 10,
-    timestamp: new Date().toISOString(),
-  });
+  dispatchWebhook(
+    jobData.callbackUrl,
+    {
+      event: 'job.progress',
+      jobId: jobData.jobId,
+      type: 'member-lounge',
+      status: 'processing',
+      progress: 10,
+      timestamp: new Date().toISOString(),
+    },
+    jobData.webhookSecret,
+  );
 
   const result = await crawlMemberLounge({
     memberLoungeUrl: jobData.memberLoungeUrl,
@@ -239,28 +263,36 @@ async function processMemberLoungeJob(
   updateJobProgress(jobData.jobId, 100);
   updateJobStatus(jobData.jobId, 'completed');
 
-  dispatchWebhook(jobData.callbackUrl, {
-    event: 'job.completed',
-    jobId: jobData.jobId,
-    type: 'member-lounge',
-    status: 'completed',
-    result,
-    timestamp: new Date().toISOString(),
-  });
+  dispatchWebhook(
+    jobData.callbackUrl,
+    {
+      event: 'job.completed',
+      jobId: jobData.jobId,
+      type: 'member-lounge',
+      status: 'completed',
+      result,
+      timestamp: new Date().toISOString(),
+    },
+    jobData.webhookSecret,
+  );
 }
 
 async function processCsaeJob(jobData: CsaeJobData): Promise<void> {
   console.log(`Processing CSAE job: ${jobData.jobId}`);
 
   updateJobProgress(jobData.jobId, 10);
-  dispatchWebhook(jobData.callbackUrl, {
-    event: 'job.progress',
-    jobId: jobData.jobId,
-    type: 'csae',
-    status: 'processing',
-    progress: 10,
-    timestamp: new Date().toISOString(),
-  });
+  dispatchWebhook(
+    jobData.callbackUrl,
+    {
+      event: 'job.progress',
+      jobId: jobData.jobId,
+      type: 'csae',
+      status: 'processing',
+      progress: 10,
+      timestamp: new Date().toISOString(),
+    },
+    jobData.webhookSecret,
+  );
 
   const result = await crawlCsae({
     csaeUrl: jobData.csaeUrl,
@@ -275,14 +307,18 @@ async function processCsaeJob(jobData: CsaeJobData): Promise<void> {
   updateJobProgress(jobData.jobId, 100);
   updateJobStatus(jobData.jobId, 'completed');
 
-  dispatchWebhook(jobData.callbackUrl, {
-    event: 'job.completed',
-    jobId: jobData.jobId,
-    type: 'csae',
-    status: 'completed',
-    result,
-    timestamp: new Date().toISOString(),
-  });
+  dispatchWebhook(
+    jobData.callbackUrl,
+    {
+      event: 'job.completed',
+      jobId: jobData.jobId,
+      type: 'csae',
+      status: 'completed',
+      result,
+      timestamp: new Date().toISOString(),
+    },
+    jobData.webhookSecret,
+  );
 }
 
 async function processJob(job: Job<CrawlJobData>): Promise<void> {
@@ -293,13 +329,17 @@ async function processJob(job: Job<CrawlJobData>): Promise<void> {
   console.log(`========================================`);
 
   updateJobStatus(jobData.jobId, 'processing');
-  dispatchWebhook(jobData.callbackUrl, {
-    event: 'job.processing',
-    jobId: jobData.jobId,
-    type: jobData.type,
-    status: 'processing',
-    timestamp: new Date().toISOString(),
-  });
+  dispatchWebhook(
+    jobData.callbackUrl,
+    {
+      event: 'job.processing',
+      jobId: jobData.jobId,
+      type: jobData.type,
+      status: 'processing',
+      timestamp: new Date().toISOString(),
+    },
+    jobData.webhookSecret,
+  );
 
   try {
     switch (jobData.type) {
@@ -328,14 +368,18 @@ async function processJob(job: Job<CrawlJobData>): Promise<void> {
   } catch (error) {
     console.error(`✗ Job failed: ${jobData.jobId}`, error);
     updateJobStatus(jobData.jobId, 'failed', (error as Error).message);
-    dispatchWebhook(jobData.callbackUrl, {
-      event: 'job.failed',
-      jobId: jobData.jobId,
-      type: jobData.type,
-      status: 'failed',
-      error: (error as Error).message,
-      timestamp: new Date().toISOString(),
-    });
+    dispatchWebhook(
+      jobData.callbackUrl,
+      {
+        event: 'job.failed',
+        jobId: jobData.jobId,
+        type: jobData.type,
+        status: 'failed',
+        error: (error as Error).message,
+        timestamp: new Date().toISOString(),
+      },
+      jobData.webhookSecret,
+    );
     throw error;
   }
 }
