@@ -48,8 +48,7 @@ export interface MemberLoungeCrawlRequest extends BaseRequestParams {
 }
 
 export interface CsaeCrawlRequest extends BaseRequestParams {
-  csaeUrl?: string;
-  memberLoungeUrl?: string;
+  csaeUrl: string;
   type: CsaeCrawlKind;
   email: string;
   password: string;
@@ -156,9 +155,13 @@ export interface MemberLoungeEvent {
   id?: string;
   title: string;
   description?: string;
+  details?: string;
+  markdown?: string;
   startDate?: string;
   endDate?: string;
   location?: string;
+  locations?: string[];
+  thumbnailImageUrl?: string;
   url?: string;
   isRegistered: boolean;
 }

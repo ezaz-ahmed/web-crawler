@@ -15,7 +15,6 @@ import {
   websiteCrawlSchema,
 } from './crawl.schema.js';
 import {
-  enqueueCsaeCrawl,
   enqueueMemberLoungeCrawl,
   enqueueSitemapCrawl,
   enqueueUrlCrawl,
@@ -23,7 +22,7 @@ import {
   getCrawlStatus,
 } from './crawl.service.js';
 import { testMemberLoungeLogin } from './member-lounge/member-lounge.auth.js';
-import { testCsaeLogin } from './csae/csae.auth.js';
+import { crawlCsae } from './csae/csae.crawler.js';
 import { logger } from '../../utils/logger.js';
 
 function handleValidationError(error: unknown, reply: FastifyReply): void {
@@ -127,7 +126,7 @@ export async function createCsaeCrawl(
 ): Promise<void> {
   try {
     const body = csaeCrawlSchema.parse(request.body);
-    const csaeUrl = body.csaeUrl ?? body.memberLoungeUrl;
+    const csaeUrl = body.csaeUrl;
 
     if (!csaeUrl) {
       reply.code(400).send({
@@ -144,32 +143,20 @@ export async function createCsaeCrawl(
 
     logger.info(`CSAE crawl requested for ${csaeUrl} type=${body.type}`);
 
-    const loginResult = await testCsaeLogin(csaeUrl, body.email, body.password);
-
-    logger.info(
-      `CSAE login result for ${csaeUrl}: ${loginResult.success ? 'success' : 'failure'}`,
-    );
-
-    if (!loginResult.success) {
-      reply.code(401).send({
-        error: 'Authentication Failed',
-        message: loginResult.message,
-        loginStatus: 'failed',
-      });
-      return;
-    }
-
-    const enqueueResponse = await enqueueCsaeCrawl({
-      ...body,
+    const result = await crawlCsae({
       csaeUrl,
+      email: body.email,
+      password: body.password,
+      crawlKind: body.type,
+      instructions: body.instructions,
     });
+
+    logger.info(`CSAE crawl completed for ${csaeUrl} type=${body.type}`);
+
     reply.code(200).send({
-      loginStatus: 'successful',
-      loginMessage: loginResult.message,
-      jobId: enqueueResponse.jobId,
       type: body.type,
-      status: enqueueResponse.status,
-      estimatedTime: enqueueResponse.estimatedTime,
+      status: 'completed',
+      result,
     });
   } catch (error) {
     handleValidationError(error, reply);

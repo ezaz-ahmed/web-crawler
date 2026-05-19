@@ -201,9 +201,9 @@ export async function enqueueMemberLoungeCrawl(
 export async function enqueueCsaeCrawl(
   body: CsaeCrawlRequest,
 ): Promise<EnqueueResponse> {
-  const csaeUrl = body.csaeUrl ?? body.memberLoungeUrl;
+  const csaeUrl = body.csaeUrl;
   if (!csaeUrl) {
-    throw new Error('csaeUrl or memberLoungeUrl is required');
+    throw new Error('csaeUrl is required');
   }
 
   const jobId = nanoid();

@@ -76,8 +76,10 @@ async function fillOnRoot(
       return false;
     }
 
+    await element.focus();
     await element.click({ clickCount: 3 });
-    await element.type(value, { delay: 20 });
+    await element.press('Backspace');
+    await element.type(value, { delay: 15 });
     return true;
   } catch {
     return false;
@@ -278,7 +280,24 @@ async function performLoginFlow(
 
   const currentUrl = page.url();
   if (!currentUrl.includes('/login')) {
-    logger.info('Login successful');
+    logger.info('Login successful — waiting for page to fully load');
+    await waitForIdle(page, 10_000);
+
+    logger.info('Page loaded — waiting 5 seconds before visiting calendar');
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
+
+    try {
+      logger.info(`Navigating to calendar page: ${baseUrl}/calendar`);
+      await page.goto(`${baseUrl}/calendar`, {
+        waitUntil: 'domcontentloaded',
+        timeout: NAVIGATION_TIMEOUT_MS,
+      });
+      await waitForIdle(page, 10_000);
+      logger.info('Calendar page loaded');
+    } catch {
+      logger.info('Calendar page navigation failed — continuing');
+    }
+
     return {
       success: true,
       message: 'Login successful',

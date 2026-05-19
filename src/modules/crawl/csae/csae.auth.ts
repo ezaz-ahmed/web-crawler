@@ -10,6 +10,18 @@ const LOGIN_URL =
 
 const NAVIGATION_TIMEOUT_MS = 30_000;
 
+const EVENTS_CALENDAR_PATH = '/events/calendar';
+
+const CREATE_BTN_WRAPPER_SELECTOR = '.navbar.navbar-default #CreateBtnWrapper';
+
+const PAGE_LOGIN_LINK_SELECTORS = [
+  '#RibbitWelcome .btn.btn-primary',
+  '#RibbitWelcome a[href*="login"]',
+  'a[href*="wicketcloud.com/login"]',
+  'a[href*="/login"]',
+  '.login-link',
+];
+
 // WicketCloud CAS login selectors
 const USERNAME_SELECTORS = [
   'input[name="username"]',
@@ -32,6 +44,25 @@ const SUBMIT_SELECTORS = [
   'button[name="submit"]',
 ];
 
+async function waitForPageToSettle(page: Page, step: string): Promise<void> {
+  logger.info(`CSAE step: waiting for page to settle after ${step}`);
+
+  try {
+    await page.waitForNavigation({
+      waitUntil: 'domcontentloaded',
+      timeout: NAVIGATION_TIMEOUT_MS,
+    });
+  } catch {
+    logger.info(`CSAE step: no navigation event captured after ${step}`);
+  }
+
+  try {
+    await page.waitForNetworkIdle({ timeout: 10_000 });
+  } catch {
+    logger.info(`CSAE step: network idle timeout after ${step}, continuing`);
+  }
+}
+
 async function fillFirstAvailableSelector(
   page: Page,
   selectors: string[],
@@ -41,8 +72,10 @@ async function fillFirstAvailableSelector(
     try {
       const element = await page.$(selector);
       if (!element) continue;
+      await element.focus();
       await element.click({ clickCount: 3 });
-      await element.type(value, { delay: 30 });
+      await page.keyboard.press('Backspace');
+      await element.type(value, { delay: 15 });
       return true;
     } catch {
       // try next
@@ -68,25 +101,12 @@ async function clickFirstAvailableSelector(
   return false;
 }
 
-async function performCsaeLogin(
+async function fillAndSubmitLoginForm(
   page: Page,
   email: string,
   password: string,
 ): Promise<CsaeLoginResult> {
-  logger.info(`Navigating to CSAE login page: ${LOGIN_URL}`);
-
-  await page.goto(LOGIN_URL, {
-    waitUntil: 'domcontentloaded',
-    timeout: NAVIGATION_TIMEOUT_MS,
-  });
-
-  try {
-    await page.waitForNetworkIdle({ timeout: 10_000 });
-  } catch {
-    // continue anyway
-  }
-
-  logger.info('Attempting to fill CSAE login form');
+  logger.info(`CSAE step: filling login form at ${page.url()}`);
 
   const emailFilled = await fillFirstAvailableSelector(
     page,
@@ -101,7 +121,7 @@ async function performCsaeLogin(
   );
 
   logger.info(
-    `CSAE login fields filled: email=${emailFilled}, password=${passwordFilled}`,
+    `CSAE step: login fields filled email=${emailFilled} password=${passwordFilled}`,
   );
 
   if (!emailFilled || !passwordFilled) {
@@ -113,29 +133,32 @@ async function performCsaeLogin(
 
   const clicked = await clickFirstAvailableSelector(page, SUBMIT_SELECTORS);
 
+  logger.info(
+    `CSAE step: submitting login form using ${clicked ? 'button click' : 'keyboard enter'}`,
+  );
+
   if (!clicked) {
     await page.keyboard.press('Enter');
   }
 
-  try {
-    await page.waitForNavigation({
-      waitUntil: 'domcontentloaded',
-      timeout: NAVIGATION_TIMEOUT_MS,
-    });
-  } catch {
-    // navigation may have already completed
-  }
-
-  await new Promise((resolve) => setTimeout(resolve, 2000));
+  await waitForPageToSettle(page, 'submitting login form');
+  logger.info(`CSAE step: login flow finished loading at ${page.url()}`);
 
   const currentUrl = page.url();
 
   if (currentUrl.includes('csae.com') && !currentUrl.includes('/login')) {
-    logger.info(`CSAE login successful, landed on: ${currentUrl}`);
+    logger.info(
+      `CSAE step: login successful, landed on ${currentUrl} — waiting for page to fully load`,
+    );
+    try {
+      await page.waitForNetworkIdle({ timeout: 20_000 });
+    } catch {
+      logger.info('CSAE step: network idle timeout after redirect, continuing');
+    }
+    logger.info(`CSAE step: page fully loaded at ${page.url()}`);
     return { success: true, message: 'Login successful' };
   }
 
-  // Check for error messages on the page
   try {
     const bodyText = await page.content();
     const errorMatch = bodyText.match(
@@ -155,6 +178,24 @@ async function performCsaeLogin(
     success: false,
     message: `Login failed: still on login page (${currentUrl})`,
   };
+}
+
+async function performCsaeLogin(
+  page: Page,
+  email: string,
+  password: string,
+): Promise<CsaeLoginResult> {
+  logger.info(`CSAE step: going to login page ${LOGIN_URL}`);
+
+  await page.goto(LOGIN_URL, {
+    waitUntil: 'domcontentloaded',
+    timeout: NAVIGATION_TIMEOUT_MS,
+  });
+
+  await waitForPageToSettle(page, 'opening login page');
+  logger.info(`CSAE step: login page loaded at ${page.url()}`);
+
+  return fillAndSubmitLoginForm(page, email, password);
 }
 
 export async function testCsaeLogin(
@@ -185,11 +226,13 @@ export async function withAuthenticatedCsaeSession<T>(
     session: AuthenticatedCsaeSession;
   }) => Promise<T>,
 ): Promise<T> {
+  logger.info(`CSAE step: launching browser for ${csaeUrl}`);
   const browser = await puppeteer.launch({ headless: false });
 
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 800 });
+    logger.info('CSAE step: browser page ready');
 
     const loginResult = await performCsaeLogin(page, email, password);
 
@@ -199,9 +242,98 @@ export async function withAuthenticatedCsaeSession<T>(
 
     const normalizedBaseUrl = new URL(csaeUrl).origin;
     const session: AuthenticatedCsaeSession = { normalizedBaseUrl };
+    logger.info(
+      `CSAE step: authenticated session ready for ${normalizedBaseUrl}`,
+    );
 
     return await action({ browser, page, session });
   } finally {
+    logger.info('CSAE step: closing browser');
+    await browser.close();
+  }
+}
+
+export async function withCsaeEventSession<T>(
+  csaeUrl: string,
+  email: string,
+  password: string,
+  action: (ctx: {
+    browser: Browser;
+    page: Page;
+    session: AuthenticatedCsaeSession;
+  }) => Promise<T>,
+): Promise<T> {
+  const normalizedBaseUrl = new URL(csaeUrl).origin;
+  const calendarUrl = `${normalizedBaseUrl}${EVENTS_CALENDAR_PATH}`;
+
+  logger.info(
+    `CSAE step: launching browser, navigating directly to ${calendarUrl}`,
+  );
+  const browser = await puppeteer.launch({ headless: false });
+
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1280, height: 800 });
+
+    await page.goto(calendarUrl, {
+      waitUntil: 'domcontentloaded',
+      timeout: NAVIGATION_TIMEOUT_MS,
+    });
+    await waitForPageToSettle(page, 'opening events calendar');
+    logger.info(`CSAE step: calendar page loaded at ${page.url()}`);
+
+    const createBtnWrapper = await page.$(CREATE_BTN_WRAPPER_SELECTOR);
+    const isLoggedIn = createBtnWrapper !== null;
+    logger.info(
+      `CSAE step: auth check via CreateBtnWrapper — logged in: ${isLoggedIn}`,
+    );
+
+    if (!isLoggedIn) {
+      logger.info('CSAE step: not authenticated, clicking login button');
+
+      const clicked = await clickFirstAvailableSelector(
+        page,
+        PAGE_LOGIN_LINK_SELECTORS,
+      );
+
+      if (clicked) {
+        logger.info('CSAE step: login button clicked, waiting for navigation');
+        await waitForPageToSettle(page, 'clicking login button');
+        logger.info(`CSAE step: redirected to ${page.url()}`);
+      } else {
+        logger.warn(
+          'CSAE step: no login button found on page, falling back to direct login URL',
+        );
+        await page.goto(LOGIN_URL, {
+          waitUntil: 'domcontentloaded',
+          timeout: NAVIGATION_TIMEOUT_MS,
+        });
+        await waitForPageToSettle(page, 'navigating to login URL');
+      }
+
+      const loginResult = await fillAndSubmitLoginForm(page, email, password);
+      if (!loginResult.success) {
+        throw new Error(loginResult.message);
+      }
+
+      logger.info(
+        `CSAE step: login complete, navigating back to ${calendarUrl}`,
+      );
+      await page.goto(calendarUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: NAVIGATION_TIMEOUT_MS,
+      });
+      await waitForPageToSettle(
+        page,
+        'returning to events calendar after login',
+      );
+      logger.info(`CSAE step: back at calendar page at ${page.url()}`);
+    }
+
+    const session: AuthenticatedCsaeSession = { normalizedBaseUrl };
+    return await action({ browser, page, session });
+  } finally {
+    logger.info('CSAE step: closing browser');
     await browser.close();
   }
 }
