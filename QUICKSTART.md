@@ -21,7 +21,6 @@ Edit `.env` and add your credentials:
 # Required immediately
 OPENAI_API_KEY=sk-your-openai-api-key-here
 ALLOWED_API_KEYS=test-key-123:whsec_test_key_123
-ALLOWED_CRAWL_DOMAINS=example.com,docs.example.com
 ```
 
 ### 3. Start Redis

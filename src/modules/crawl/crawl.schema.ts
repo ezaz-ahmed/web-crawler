@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { config } from '../../config.js';
 
 function isBlockedIpv4(hostname: string): boolean {
   const octets = hostname.split('.').map(Number);
@@ -56,27 +55,14 @@ function isAllowedCrawlUrl(value: string): boolean {
       return false;
     }
 
-    const hostname = parsed.hostname.toLowerCase();
-
-    if (!isSafePublicHostname(hostname)) {
-      return false;
-    }
-
-    const allowedDomains = config.crawler.allowedDomains;
-
-    if (allowedDomains.length === 0) {
-      return false;
-    }
-
-    return allowedDomains.includes(hostname);
+    return isSafePublicHostname(parsed.hostname.toLowerCase());
   } catch {
     return false;
   }
 }
 
 const allowedCrawlUrl = z.string().url().refine(isAllowedCrawlUrl, {
-  message:
-    'URL must use http(s), target a public hostname, and match ALLOWED_CRAWL_DOMAINS exactly',
+  message: 'URL must use http(s) and target a public hostname',
 });
 
 export const urlCrawlSchema = z.object({

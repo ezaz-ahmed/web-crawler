@@ -44,23 +44,6 @@ function parseApiKeySecretMappings(raw: string): Array<{
   return mappings;
 }
 
-function parseAllowedCrawlDomains(raw: string): string[] {
-  const domains = raw
-    .split(',')
-    .map((entry) => entry.trim().toLowerCase())
-    .filter(Boolean)
-    .map((entry) => (entry.endsWith('.') ? entry.slice(0, -1) : entry));
-
-  for (const domain of domains) {
-    if (domain.includes('*')) {
-      throw new Error(
-        `Invalid ALLOWED_CRAWL_DOMAINS entry "${domain}". Wildcards are not supported.`,
-      );
-    }
-  }
-
-  return domains;
-}
 
 export const config: AppConfig = {
   port: env.PORT,
@@ -80,7 +63,6 @@ export const config: AppConfig = {
     maxConcurrentRequests: env.MAX_CONCURRENT_REQUESTS,
     requestTimeout: env.REQUEST_TIMEOUT,
     rateLimitPerDomain: env.RATE_LIMIT_PER_DOMAIN,
-    allowedDomains: parseAllowedCrawlDomains(env.ALLOWED_CRAWL_DOMAINS),
   },
 };
 
