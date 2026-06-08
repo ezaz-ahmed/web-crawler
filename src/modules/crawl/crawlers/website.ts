@@ -1,6 +1,6 @@
 import PQueue from 'p-queue';
 import { crawlSingleUrl } from './single-url.js';
-import { matchesPatterns, isSameOrigin, normalizeUrl } from './patterns.js';
+import { matchesPatterns, isUnderRootPath, normalizeUrl } from './patterns.js';
 import { config } from '../../../config/env.js';
 import type { PageResult } from '../../../types.js';
 
@@ -44,7 +44,7 @@ export async function crawlWebsite(
       continue;
     }
 
-    if (!isSameOrigin(item.url, rootUrl)) {
+    if (!isUnderRootPath(item.url, rootUrl)) {
       continue;
     }
 
@@ -72,7 +72,7 @@ export async function crawlWebsite(
             const normalizedLink = normalizeUrl(link);
             if (
               !visited.has(normalizedLink) &&
-              isSameOrigin(link, rootUrl) &&
+              isUnderRootPath(link, rootUrl) &&
               matchesPatterns(link, includePatterns, excludePatterns)
             ) {
               queue.push({ url: link, depth: item.depth + 1 });

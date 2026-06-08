@@ -6,11 +6,8 @@ import type {
 } from '../../../types.js';
 import { withAuthenticatedSession } from './member-lounge.auth.js';
 import { crawlDiscussions } from './member-lounge.discussions.js';
-import { crawlAdminEvents, crawlEvents } from './member-lounge.events.js';
-import {
-  crawlAdminResources,
-  crawlResources,
-} from './member-lounge.resources.js';
+import { crawlEvents } from './member-lounge.events.js';
+import { crawlResources } from './member-lounge.resources.js';
 import type { MemberLoungeCrawlInput } from './member-lounge.types.js';
 
 export async function crawlMemberLounge(

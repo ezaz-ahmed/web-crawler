@@ -47,6 +47,50 @@ export async function fetchHtml(url: string): Promise<FetchResult> {
     $('[role="banner"]').remove();
     $('[role="complementary"]').remove();
 
+    // Extract links before DOM mutation
+    const links: string[] = [];
+    $('a[href]').each((_, element) => {
+      const href = $(element).attr('href');
+      if (href) {
+        try {
+          const absoluteUrl = new URL(href, url).toString();
+          if (
+            absoluteUrl.startsWith('http://') ||
+            absoluteUrl.startsWith('https://')
+          ) {
+            links.push(absoluteUrl);
+          }
+        } catch {
+          // Skip invalid URLs.
+        }
+      }
+    });
+
+    const uniqueLinks = Array.from(new Set(links));
+
+    // Annotate anchor tags so URLs survive .text() extraction
+    $('a[href]').each((_, element) => {
+      const el = $(element);
+      const href = el.attr('href');
+      if (href) {
+        try {
+          const absoluteUrl = new URL(href, url).toString();
+          if (
+            absoluteUrl.startsWith('http://') ||
+            absoluteUrl.startsWith('https://')
+          ) {
+            const linkText = el.text().trim();
+            el.replaceWith(
+              linkText ? `${linkText} (${absoluteUrl})` : absoluteUrl,
+            );
+          }
+        } catch {
+          // Leave unchanged.
+        }
+      }
+    });
+
+    // Extract text content after URL annotation
     let content = '';
     const candidates = [
       $('main').first(),
@@ -70,26 +114,6 @@ export async function fetchHtml(url: string): Promise<FetchResult> {
       .map((line) => line.trim())
       .filter((line) => line.length > 0)
       .join('\n');
-
-    const links: string[] = [];
-    $('a[href]').each((_, element) => {
-      const href = $(element).attr('href');
-      if (href) {
-        try {
-          const absoluteUrl = new URL(href, url).toString();
-          if (
-            absoluteUrl.startsWith('http://') ||
-            absoluteUrl.startsWith('https://')
-          ) {
-            links.push(absoluteUrl);
-          }
-        } catch {
-          // Skip invalid URLs.
-        }
-      }
-    });
-
-    const uniqueLinks = Array.from(new Set(links));
 
     console.log(
       `✓ Fetched HTML: ${title} (${content.length} chars, ${uniqueLinks.length} links)`,

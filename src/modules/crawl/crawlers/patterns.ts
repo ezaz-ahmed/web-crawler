@@ -70,6 +70,23 @@ export function isSameOrigin(url: string, referenceUrl: string): boolean {
   }
 }
 
+export function isUnderRootPath(url: string, rootUrl: string): boolean {
+  try {
+    const urlObj = new URL(url);
+    const rootObj = new URL(rootUrl);
+    if (urlObj.origin !== rootObj.origin) return false;
+    const rootPath = rootObj.pathname.endsWith('/')
+      ? rootObj.pathname
+      : rootObj.pathname + '/';
+    return (
+      urlObj.pathname === rootObj.pathname ||
+      urlObj.pathname.startsWith(rootPath)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function normalizeUrl(url: string): string {
   try {
     const urlObj = new URL(url);
