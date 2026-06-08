@@ -234,7 +234,10 @@ async function processSitemapJob(jobData: SitemapJobData): Promise<void> {
 async function processMemberLoungeJob(
   jobData: MemberLoungeJobData,
 ): Promise<void> {
-  logger.info(`Processing member lounge job: ${jobData.jobId}`);
+  logger.info(
+    { jobId: jobData.jobId, url: jobData.memberLoungeUrl, kind: jobData.crawlKind },
+    `Processing member lounge job: ${jobData.jobId} url=${jobData.memberLoungeUrl} kind=${jobData.crawlKind}`,
+  );
 
   updateJobProgress(jobData.jobId, 10);
   dispatchWebhook(
@@ -367,8 +370,35 @@ async function processJob(job: Job<CrawlJobData>): Promise<void> {
 
     logger.info(`✓ Job completed: ${jobData.jobId}`);
   } catch (error) {
-    logger.error(`✗ Job failed: ${jobData.jobId}`, error);
-    updateJobStatus(jobData.jobId, 'failed', (error as Error).message);
+    const errMsg = error instanceof Error ? error.message : String(error);
+    const errStack = error instanceof Error ? error.stack : undefined;
+    const jobContext: Record<string, unknown> = {
+      jobId: jobData.jobId,
+      type: jobData.type,
+      error: errMsg,
+      stack: errStack,
+    };
+
+    if (jobData.type === 'member-lounge') {
+      const mlData = jobData as MemberLoungeJobData;
+      jobContext.url = mlData.memberLoungeUrl;
+      jobContext.crawlKind = mlData.crawlKind;
+      jobContext.email = mlData.email;
+    } else if (jobData.type === 'url') {
+      jobContext.url = (jobData as UrlJobData).url;
+    } else if (jobData.type === 'website') {
+      jobContext.url = (jobData as WebsiteJobData).url;
+    } else if (jobData.type === 'sitemap') {
+      jobContext.url = (jobData as SitemapJobData).sitemapUrl;
+    } else if (jobData.type === 'csae') {
+      const csaeData = jobData as CsaeJobData;
+      jobContext.url = csaeData.csaeUrl;
+      jobContext.crawlKind = csaeData.crawlKind;
+    }
+
+    logger.error(jobContext, `✗ Job failed: ${jobData.jobId} type=${jobData.type}: ${errMsg}`);
+
+    updateJobStatus(jobData.jobId, 'failed', errMsg);
     dispatchWebhook(
       jobData.callbackUrl,
       {
@@ -376,7 +406,7 @@ async function processJob(job: Job<CrawlJobData>): Promise<void> {
         jobId: jobData.jobId,
         type: jobData.type,
         status: 'failed',
-        error: (error as Error).message,
+        error: errMsg,
         timestamp: new Date().toISOString(),
       },
       jobData.webhookSecret,
@@ -418,11 +448,17 @@ export function startWorkers(): void {
     });
 
     worker.on('failed', (failedJob, error) => {
-      logger.error(`[${priority}] Job ${failedJob?.id} failed:`, error.message);
+      logger.error(
+        { priority, jobId: failedJob?.id, error: error.message, stack: error.stack },
+        `[${priority}] Job ${failedJob?.id} failed: ${error.message}`,
+      );
     });
 
     worker.on('error', (error) => {
-      logger.error(`[${priority}] Worker error:`, error);
+      logger.error(
+        { priority, error: error.message, stack: error.stack },
+        `[${priority}] Worker connection/internal error: ${error.message}`,
+      );
     });
   });
 

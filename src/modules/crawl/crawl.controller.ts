@@ -80,13 +80,18 @@ export async function createMemberLoungeCrawl(
   request: FastifyRequest<{ Body: MemberLoungeCrawlRequest }>,
   reply: FastifyReply,
 ): Promise<void> {
+  let step = 'validation';
+  let memberLoungeUrl: string | undefined;
+
   try {
     const body = memberLoungeCrawlSchema.parse(request.body);
+    memberLoungeUrl = body.memberLoungeUrl;
 
     logger.info(
       `Member lounge crawl requested for ${body.memberLoungeUrl} type=${body.type}`,
     );
 
+    step = 'login';
     const loginResult = await testMemberLoungeLogin(
       body.memberLoungeUrl,
       body.email,
@@ -106,6 +111,7 @@ export async function createMemberLoungeCrawl(
       return;
     }
 
+    step = 'enqueue';
     const enqueueResponse = await enqueueMemberLoungeCrawl(
       body,
       request.webhookSecret,
@@ -119,7 +125,36 @@ export async function createMemberLoungeCrawl(
       estimatedTime: enqueueResponse.estimatedTime,
     });
   } catch (error) {
-    handleValidationError(error, reply);
+    if (error instanceof z.ZodError) {
+      logger.warn(
+        { step, memberLoungeUrl, validationErrors: error.errors },
+        'Member lounge crawl request failed schema validation',
+      );
+      reply.code(400).send({
+        error: 'Validation Error',
+        details: error.errors,
+      });
+      return;
+    }
+
+    const errMessage = error instanceof Error ? error.message : String(error);
+    const errStack = error instanceof Error ? error.stack : undefined;
+
+    logger.error(
+      {
+        step,
+        memberLoungeUrl,
+        error: errMessage,
+        stack: errStack,
+      },
+      `Member lounge crawl failed at step=${step}: ${errMessage}`,
+    );
+
+    reply.code(500).send({
+      error: 'Internal Server Error',
+      message: `Crawl failed at step: ${step}`,
+      detail: errMessage,
+    });
   }
 }
 

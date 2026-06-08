@@ -1,18 +1,40 @@
 type LogLevel = 'info' | 'warn' | 'error';
 
-function formatMessage(level: LogLevel, message: string): string {
+function formatLog(level: LogLevel, objOrMsg: unknown, msg?: string): string {
   const ts = new Date().toISOString();
-  return `[${ts}] [${level.toUpperCase()}] ${message}`;
+  const prefix = `[${ts}] [${level.toUpperCase()}]`;
+
+  if (msg !== undefined) {
+    // pino-style: logger.error({ key: val }, 'message')
+    let fields = '';
+    try {
+      fields = JSON.stringify(objOrMsg);
+    } catch {
+      fields = String(objOrMsg);
+    }
+    return `${prefix} ${msg} ${fields}`;
+  }
+
+  // simple: logger.info('message')
+  if (typeof objOrMsg === 'string') {
+    return `${prefix} ${objOrMsg}`;
+  }
+
+  try {
+    return `${prefix} ${JSON.stringify(objOrMsg)}`;
+  } catch {
+    return `${prefix} ${String(objOrMsg)}`;
+  }
 }
 
 export const logger = {
-  info(message: string, ...args: unknown[]) {
-    console.log(formatMessage('info', message), ...args);
+  info(objOrMsg: unknown, msg?: string) {
+    process.stdout.write(formatLog('info', objOrMsg, msg) + '\n');
   },
-  warn(message: string, ...args: unknown[]) {
-    console.warn(formatMessage('warn', message), ...args);
+  warn(objOrMsg: unknown, msg?: string) {
+    process.stdout.write(formatLog('warn', objOrMsg, msg) + '\n');
   },
-  error(message: string, ...args: unknown[]) {
-    console.error(formatMessage('error', message), ...args);
+  error(objOrMsg: unknown, msg?: string) {
+    process.stdout.write(formatLog('error', objOrMsg, msg) + '\n');
   },
 };
