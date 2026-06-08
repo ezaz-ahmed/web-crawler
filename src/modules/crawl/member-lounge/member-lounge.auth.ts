@@ -317,7 +317,10 @@ export async function testMemberLoungeLogin(
   password: string,
 ): Promise<MemberLoungeLoginResult> {
   const baseUrl = normalizeBaseUrl(memberLoungeUrl);
-  const browser = await puppeteer.launch({ headless: false, slowMo: 50 });
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
 
   try {
     const page = await browser.newPage();
@@ -339,7 +342,10 @@ export async function withAuthenticatedSession<T>(
   }) => Promise<T>,
 ): Promise<T> {
   const baseUrl = normalizeBaseUrl(memberLoungeUrl);
-  const browser = await puppeteer.launch({ headless: false, slowMo: 50 });
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
 
   try {
     const page = await browser.newPage();

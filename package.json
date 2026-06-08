@@ -6,9 +6,15 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:worker": "tsx watch src/worker.ts",
+    "dev:docker": "tsx watch src/index.ts",
+    "dev:docker:worker": "tsx watch src/worker.ts",
     "build": "tsc && echo Build successful",
     "start": "node dist/index.js",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "docker:dev": "docker compose -f docker-compose.dev.yml up",
+    "docker:dev:build": "docker compose -f docker-compose.dev.yml up --build",
+    "docker:dev:down": "docker compose -f docker-compose.dev.yml down"
   },
   "keywords": [
     "web-crawler",

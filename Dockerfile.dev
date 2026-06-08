@@ -1,0 +1,29 @@
+FROM node:24-alpine
+
+WORKDIR /app
+
+# Install Chromium for Playwright/Puppeteer browser crawling
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
+
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+# Non-root user so Chrome sandbox works without --no-sandbox
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+COPY package*.json ./
+RUN npm ci
+
+RUN chown -R appuser:appgroup /app
+
+USER appuser
+
+EXPOSE 5000

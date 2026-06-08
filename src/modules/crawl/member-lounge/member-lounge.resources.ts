@@ -1,88 +1,152 @@
 import type { Page } from 'puppeteer';
-import * as cheerio from 'cheerio';
 import type { MemberLoungeResource } from '../../../types.js';
 import { buildMarkdownByFilename } from './member-lounge.files.js';
 
-interface ExtractedResource {
-  title: string;
-  description?: string;
-  url?: string;
-  files: Array<{ name: string; url: string; type: 'pdf' | 'docx' | 'other' }>;
+interface ApiBanner {
+  url: string;
+  size: number;
+  name: string;
+  title?: string;
 }
 
-async function extractResourcesFromCurrentPage(
+interface ApiPostDetails {
+  title?: string;
+  description?: null | string;
+  downloads?: ApiBanner[];
+  permalink?: string;
+  resourceType?: string;
+  membersOnly?: boolean;
+}
+
+interface ApiResource {
+  _id: string;
+  postTitle?: string;
+  permissionGroupIds?: string[];
+  resourceType?: string;
+  postDetails?: ApiPostDetails;
+}
+
+function getFileName(banner: ApiBanner): string {
+  return banner.name || banner.title || banner.url.split('/').pop() || 'file';
+}
+
+function normalizeFileType(url: string): 'pdf' | 'docx' | 'other' {
+  const lower = url.toLowerCase();
+  if (lower.endsWith('.pdf')) return 'pdf';
+  if (lower.endsWith('.docx') || lower.endsWith('.doc')) return 'docx';
+  return 'other';
+}
+
+async function fetchResourcePage(
   page: Page,
-): Promise<ExtractedResource[]> {
-  const html = await page.content();
-  const $ = cheerio.load(html);
-  const resources: ExtractedResource[] = [];
+  url: string,
+): Promise<ApiResource[]> {
+  return page.evaluate(async (apiUrl: string) => {
+    const res = await fetch(apiUrl, { credentials: 'include' });
+    if (!res.ok) return [];
+    const data = (await res.json()) as unknown;
 
-  $('article, .card, .resource-card, li, a').each((_, element) => {
-    const node = $(element);
-    const text = node.text().trim();
+    console.log(`👉👉👉 Fetched data from ${apiUrl}:`, data);
 
-    if (!text || !/resource|download|document|pdf|docx/i.test(text)) {
-      return;
+    // Handle array wrapper: [{ resources: [...], ... }]
+    if (Array.isArray(data)) {
+      if (
+        data.length > 0 &&
+        Array.isArray((data[0] as Record<string, unknown>)['resources'])
+      ) {
+        return (data[0] as Record<string, unknown>)['resources'] as unknown[];
+      }
+      return data;
     }
 
-    const href =
-      node.attr('href') ||
-      node.find('a[href]').first().attr('href') ||
-      undefined;
-
-    const title =
-      node.find('h1,h2,h3,h4,h5').first().text().trim() ||
-      text
-        .split('\n')
-        .map((line) => line.trim())
-        .find((line) => line.length > 0) ||
-      'Untitled resource';
-
-    const fileLinks = node
-      .find('a[href]')
-      .toArray()
-      .map((link) => {
-        const linkNode = $(link);
-        const linkUrl = linkNode.attr('href') || '';
-        const name =
-          linkNode.text().trim() || linkUrl.split('/').pop() || 'file';
-        const lower = linkUrl.toLowerCase();
-
-        const type: 'pdf' | 'docx' | 'other' = lower.endsWith('.pdf')
-          ? 'pdf'
-          : lower.endsWith('.docx') || lower.endsWith('.doc')
-            ? 'docx'
-            : 'other';
-
-        return {
-          name,
-          url: linkUrl,
-          type,
-        };
-      })
-      .filter((item) => item.url.length > 0);
-
-    resources.push({
-      title,
-      description: text.slice(0, 500),
-      url: href,
-      files: fileLinks,
-    });
-  });
-
-  const deduped = new Map<string, ExtractedResource>();
-  for (const item of resources) {
-    const key = item.url || item.title;
-    if (!deduped.has(key)) {
-      deduped.set(key, item);
+    if (data && typeof data === 'object') {
+      const obj = data as Record<string, unknown>;
+      const list = obj['resources'] ?? obj['data'];
+      if (Array.isArray(list)) return list;
     }
+
+    return [];
+  }, url);
+}
+
+async function fetchAllFromApi(
+  page: Page,
+  baseUrl: string,
+  apiPath: string,
+): Promise<ApiResource[]> {
+  const all: ApiResource[] = [];
+  let after = '-1';
+
+  while (true) {
+    const pageUrl = `${baseUrl}${apiPath}?after=${after}`;
+    console.log(`✨✨✨ Fetching resources from: ${pageUrl}`);
+
+    const batch = await fetchResourcePage(page, pageUrl);
+
+    console.log(
+      `🔥🔥🔥 Fetched ${batch.length} resources from ${pageUrl}`,
+      batch.map((r) => r._id),
+    );
+
+    if (!batch.length) break;
+    all.push(...batch);
+    after = batch[batch.length - 1]._id;
   }
 
-  return Array.from(deduped.values());
+  console.log(
+    `✅ Completed fetching all resources from ${apiPath}. Total: ${all.length}`,
+  );
+
+  return all;
 }
 
-function normalizeKey(value: string | undefined): string {
-  return (value || '').trim().toLowerCase();
+async function buildResourceEntry(
+  baseUrl: string,
+  resource: ApiResource,
+  isPurchased: boolean,
+  page: Page,
+  instructions?: string,
+): Promise<MemberLoungeResource> {
+  const details = resource.postDetails;
+  const downloads = details?.downloads ?? [];
+
+  const downloadFiles = downloads.map((d) => ({
+    name: getFileName(d),
+    url: d.url,
+  }));
+
+  const fileMarkdownByName = await buildMarkdownByFilename(
+    page,
+    downloadFiles,
+    instructions,
+  );
+
+  const files = downloads.map((d) => {
+    const name = getFileName(d);
+    return {
+      name,
+      url: d.url,
+      type: normalizeFileType(d.url),
+      markdown: fileMarkdownByName[name],
+    };
+  });
+
+  const permalink = details?.permalink;
+  const url = permalink
+    ? permalink.startsWith('http')
+      ? permalink
+      : `${baseUrl}/resources/${permalink}`
+    : undefined;
+
+  return {
+    id: resource._id,
+    title: details?.title ?? resource.postTitle ?? 'Untitled',
+    description: details?.description ?? undefined,
+    url,
+    isPurchased,
+    files,
+    fileMarkdownByName,
+  };
 }
 
 export async function crawlResources(
@@ -90,45 +154,38 @@ export async function crawlResources(
   page: Page,
   instructions?: string,
 ): Promise<MemberLoungeResource[]> {
-  await page.goto(`${baseUrl}/resources`, {
-    waitUntil: 'domcontentloaded',
-  });
-  const resources = await extractResourcesFromCurrentPage(page);
+  const allResources = await fetchAllFromApi(
+    page,
+    baseUrl,
+    '/api/post/resources/gallery/page',
+  );
 
-  await page.goto(`${baseUrl}/resources/my-purchased-resources`, {
-    waitUntil: 'domcontentloaded',
-  });
-  const purchased = await extractResourcesFromCurrentPage(page);
+  console.log(
+    `🔥🔥🔥 Fetched ${allResources.length} total resources from gallery endpoint`,
+  );
 
-  const purchasedLookup = new Set(
-    purchased.flatMap((item) => [
-      normalizeKey(item.title),
-      normalizeKey(item.url),
-    ]),
+  const purchasedIds = new Set(allResources.map((r) => r._id));
+
+  console.log(
+    `🔍 Identified ${purchasedIds.size} purchased resources`,
+    Array.from(purchasedIds),
   );
 
   const result: MemberLoungeResource[] = [];
 
-  for (const resource of resources) {
-    const isPurchased =
-      purchasedLookup.has(normalizeKey(resource.title)) ||
-      purchasedLookup.has(normalizeKey(resource.url));
-
-    const fileMarkdownByName = await buildMarkdownByFilename(
-      page,
-      resource.files.map((file) => ({ name: file.name, url: file.url })),
-      instructions,
+  for (const resource of allResources) {
+    result.push(
+      await buildResourceEntry(
+        baseUrl,
+        resource,
+        purchasedIds.has(resource._id),
+        page,
+        instructions,
+      ),
     );
-
-    result.push({
-      title: resource.title,
-      description: resource.description,
-      url: resource.url,
-      isPurchased,
-      files: resource.files,
-      fileMarkdownByName,
-    });
   }
+
+  console.log(`✅ Built resource entries with file markdown`, result);
 
   return result;
 }
@@ -138,29 +195,19 @@ export async function crawlAdminResources(
   page: Page,
   instructions?: string,
 ): Promise<MemberLoungeResource[]> {
-  await page.goto(`${baseUrl}/resources/admin-resources`, {
-    waitUntil: 'domcontentloaded',
-  });
+  const resources = await fetchAllFromApi(
+    page,
+    baseUrl,
+    '/api/post/resources/admin-resources/gallery/page',
+  );
 
-  const resources = await extractResourcesFromCurrentPage(page);
-  const mapped: MemberLoungeResource[] = [];
+  const result: MemberLoungeResource[] = [];
 
   for (const resource of resources) {
-    const fileMarkdownByName = await buildMarkdownByFilename(
-      page,
-      resource.files.map((file) => ({ name: file.name, url: file.url })),
-      instructions,
+    result.push(
+      await buildResourceEntry(baseUrl, resource, false, page, instructions),
     );
-
-    mapped.push({
-      title: resource.title,
-      description: resource.description,
-      url: resource.url,
-      isPurchased: false,
-      files: resource.files,
-      fileMarkdownByName,
-    });
   }
 
-  return mapped;
+  return result;
 }

@@ -178,6 +178,7 @@ export interface MemberLoungeResource {
     name: string;
     url: string;
     type: 'pdf' | 'docx' | 'other';
+    markdown?: string;
   }>;
   fileMarkdownByName?: Record<string, string>;
 }

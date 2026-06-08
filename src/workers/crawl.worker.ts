@@ -29,9 +29,10 @@ import {
   updateJobStatus,
 } from '../modules/crawl/job.js';
 import { dispatchWebhook } from '../modules/crawl/webhook.js';
+import { logger } from '../utils/logger.js';
 
 async function processUrlJob(jobData: UrlJobData): Promise<void> {
-  console.log(`Processing URL job: ${jobData.jobId}`);
+  logger.info(`Processing URL job: ${jobData.jobId}`);
 
   const pageResult = await crawlSingleUrl(
     jobData.url,
@@ -71,7 +72,7 @@ async function processUrlJob(jobData: UrlJobData): Promise<void> {
 }
 
 async function processWebsiteJob(jobData: WebsiteJobData): Promise<void> {
-  console.log(`Processing website job: ${jobData.jobId}`);
+  logger.info(`Processing website job: ${jobData.jobId}`);
 
   let lastReportedProgress = -1;
   const pages = await crawlWebsite(
@@ -107,7 +108,7 @@ async function processWebsiteJob(jobData: WebsiteJobData): Promise<void> {
     throw new Error('No pages crawled');
   }
 
-  console.log(`Converting ${pages.length} pages to markdown...`);
+  logger.info(`Converting ${pages.length} pages to markdown...`);
 
   const markdowns = await convertPagesToMarkdown(
     pages.map((p) => ({
@@ -169,7 +170,7 @@ async function processWebsiteJob(jobData: WebsiteJobData): Promise<void> {
 }
 
 async function processSitemapJob(jobData: SitemapJobData): Promise<void> {
-  console.log(`Processing sitemap job: ${jobData.jobId}`);
+  logger.info(`Processing sitemap job: ${jobData.jobId}`);
 
   const urls = await parseSitemap(
     jobData.sitemapUrl,
@@ -181,7 +182,7 @@ async function processSitemapJob(jobData: SitemapJobData): Promise<void> {
     throw new Error('No URLs found in sitemap');
   }
 
-  console.log(`Found ${urls.length} URLs in sitemap, enqueueing child jobs...`);
+  logger.info(`Found ${urls.length} URLs in sitemap, enqueueing child jobs...`);
 
   for (const url of urls) {
     const childJobId = nanoid();
@@ -233,7 +234,7 @@ async function processSitemapJob(jobData: SitemapJobData): Promise<void> {
 async function processMemberLoungeJob(
   jobData: MemberLoungeJobData,
 ): Promise<void> {
-  console.log(`Processing member lounge job: ${jobData.jobId}`);
+  logger.info(`Processing member lounge job: ${jobData.jobId}`);
 
   updateJobProgress(jobData.jobId, 10);
   dispatchWebhook(
@@ -278,7 +279,7 @@ async function processMemberLoungeJob(
 }
 
 async function processCsaeJob(jobData: CsaeJobData): Promise<void> {
-  console.log(`Processing CSAE job: ${jobData.jobId}`);
+  logger.info(`Processing CSAE job: ${jobData.jobId}`);
 
   updateJobProgress(jobData.jobId, 10);
   dispatchWebhook(
@@ -324,9 +325,9 @@ async function processCsaeJob(jobData: CsaeJobData): Promise<void> {
 async function processJob(job: Job<CrawlJobData>): Promise<void> {
   const jobData = job.data;
 
-  console.log(`\n========================================`);
-  console.log(`Starting job: ${jobData.jobId} (type: ${jobData.type})`);
-  console.log(`========================================`);
+  logger.info(`\n========================================`);
+  logger.info(`Starting job: ${jobData.jobId} (type: ${jobData.type})`);
+  logger.info(`========================================`);
 
   updateJobStatus(jobData.jobId, 'processing');
   dispatchWebhook(
@@ -364,9 +365,9 @@ async function processJob(job: Job<CrawlJobData>): Promise<void> {
         );
     }
 
-    console.log(`✓ Job completed: ${jobData.jobId}`);
+    logger.info(`✓ Job completed: ${jobData.jobId}`);
   } catch (error) {
-    console.error(`✗ Job failed: ${jobData.jobId}`, error);
+    logger.error(`✗ Job failed: ${jobData.jobId}`, error);
     updateJobStatus(jobData.jobId, 'failed', (error as Error).message);
     dispatchWebhook(
       jobData.callbackUrl,
@@ -387,7 +388,7 @@ async function processJob(job: Job<CrawlJobData>): Promise<void> {
 const workers: Worker[] = [];
 
 export function startWorkers(): void {
-  console.log('Starting workers...');
+  logger.info('Starting workers...');
 
   const highWorker = new Worker<CrawlJobData>('crawl-high', processJob, {
     connection: redisConnection,
@@ -413,26 +414,23 @@ export function startWorkers(): void {
     const priority = ['high', 'medium', 'low'][index];
 
     worker.on('completed', (completedJob) => {
-      console.log(`[${priority}] Job ${completedJob.id} completed`);
+      logger.info(`[${priority}] Job ${completedJob.id} completed`);
     });
 
     worker.on('failed', (failedJob, error) => {
-      console.error(
-        `[${priority}] Job ${failedJob?.id} failed:`,
-        error.message,
-      );
+      logger.error(`[${priority}] Job ${failedJob?.id} failed:`, error.message);
     });
 
     worker.on('error', (error) => {
-      console.error(`[${priority}] Worker error:`, error);
+      logger.error(`[${priority}] Worker error:`, error);
     });
   });
 
-  console.log('✓ Workers started (high: 2, medium: 2, low: 1 concurrency)');
+  logger.info('✓ Workers started (high: 2, medium: 2, low: 1 concurrency)');
 }
 
 export async function stopWorkers(): Promise<void> {
-  console.log('Stopping workers...');
+  logger.info('Stopping workers...');
   await Promise.all(workers.map((worker) => worker.close()));
-  console.log('✓ Workers stopped');
+  logger.info('✓ Workers stopped');
 }

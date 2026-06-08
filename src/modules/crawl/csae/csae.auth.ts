@@ -205,7 +205,7 @@ export async function testCsaeLogin(
 ): Promise<CsaeLoginResult> {
   const normalizedBaseUrl = new URL(csaeUrl).origin;
   logger.info(`Starting CSAE login test for ${normalizedBaseUrl}`);
-  const browser = await puppeteer.launch({ headless: false });
+  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
 
   try {
     const page = await browser.newPage();
@@ -227,7 +227,7 @@ export async function withAuthenticatedCsaeSession<T>(
   }) => Promise<T>,
 ): Promise<T> {
   logger.info(`CSAE step: launching browser for ${csaeUrl}`);
-  const browser = await puppeteer.launch({ headless: false });
+  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
 
   try {
     const page = await browser.newPage();
@@ -269,7 +269,7 @@ export async function withCsaeEventSession<T>(
   logger.info(
     `CSAE step: launching browser, navigating directly to ${calendarUrl}`,
   );
-  const browser = await puppeteer.launch({ headless: false });
+  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
 
   try {
     const page = await browser.newPage();

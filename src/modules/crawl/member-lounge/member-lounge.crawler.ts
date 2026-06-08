@@ -32,22 +32,22 @@ export async function crawlMemberLounge(
           warnings,
         };
 
-        if (
-          session.userRole === 'admin' ||
-          session.userRole === 'super-admin'
-        ) {
-          try {
-            const adminEvents = await crawlAdminEvents(
-              session.normalizedBaseUrl,
-              page,
-            );
-            result.events = [...result.events, ...adminEvents];
-          } catch {
-            warnings.push(
-              'Admin events page is not accessible for current user',
-            );
-          }
-        }
+        // if (
+        //   session.userRole === 'admin' ||
+        //   session.userRole === 'super-admin'
+        // ) {
+        //   try {
+        //     const adminEvents = await crawlAdminEvents(
+        //       session.normalizedBaseUrl,
+        //       page,
+        //     );
+        //     result.events = [...result.events, ...adminEvents];
+        //   } catch {
+        //     warnings.push(
+        //       'Admin events page is not accessible for current user',
+        //     );
+        //   }
+        // }
 
         return result;
       }
@@ -65,23 +65,23 @@ export async function crawlMemberLounge(
           warnings,
         };
 
-        if (
-          session.userRole === 'admin' ||
-          session.userRole === 'super-admin'
-        ) {
-          try {
-            const adminResources = await crawlAdminResources(
-              session.normalizedBaseUrl,
-              page,
-              input.instructions,
-            );
-            result.resources = [...result.resources, ...adminResources];
-          } catch {
-            warnings.push(
-              'Admin resources page is not accessible for current user',
-            );
-          }
-        }
+        // if (
+        //   session.userRole === 'admin' ||
+        //   session.userRole === 'super-admin'
+        // ) {
+        //   try {
+        //     const adminResources = await crawlAdminResources(
+        //       session.normalizedBaseUrl,
+        //       page,
+        //       input.instructions,
+        //     );
+        //     result.resources = [...result.resources, ...adminResources];
+        //   } catch {
+        //     warnings.push(
+        //       'Admin resources page is not accessible for current user',
+        //     );
+        //   }
+        // }
 
         return result;
       }
