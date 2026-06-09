@@ -287,15 +287,15 @@ async function performLoginFlow(
     await new Promise((resolve) => setTimeout(resolve, 5_000));
 
     try {
-      logger.info(`Navigating to calendar page: ${baseUrl}/calendar`);
-      await page.goto(`${baseUrl}/calendar`, {
+      logger.info(`Navigating to home page: ${baseUrl}/`);
+      await page.goto(`${baseUrl}/`, {
         waitUntil: 'domcontentloaded',
         timeout: NAVIGATION_TIMEOUT_MS,
       });
       await waitForIdle(page, 10_000);
-      logger.info('Calendar page loaded');
+      logger.info('Home page loaded');
     } catch {
-      logger.info('Calendar page navigation failed — continuing');
+      logger.info('Home page navigation failed — continuing');
     }
 
     return {
