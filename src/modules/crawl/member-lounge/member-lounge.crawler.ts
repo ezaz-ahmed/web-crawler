@@ -9,10 +9,34 @@ import { crawlDiscussions } from './member-lounge.discussions.js';
 import { crawlEvents } from './member-lounge.events.js';
 import { crawlResources } from './member-lounge.resources.js';
 import type { MemberLoungeCrawlInput } from './member-lounge.types.js';
+import { redisConnection } from '../../../plugins/redis.js';
+
+function mlAuthKey(memberLoungeUrl: string): string {
+  const parsed = new URL(memberLoungeUrl);
+  return `ml:auth:${parsed.protocol}//${parsed.host}`;
+}
 
 export async function crawlMemberLounge(
   input: MemberLoungeCrawlInput,
 ): Promise<MemberLoungeResult> {
+  if (input.crawlKind === 'resource') {
+    const baseUrl = new URL(input.memberLoungeUrl).origin;
+    const authToken = await redisConnection.get(mlAuthKey(input.memberLoungeUrl));
+
+    if (!authToken) {
+      throw new Error(`Auth token not found in Redis for ${baseUrl}`);
+    }
+
+    const resources = await crawlResources(baseUrl, authToken, input.instructions);
+
+    return {
+      memberLoungeUrl: baseUrl,
+      crawlKind: 'resource',
+      resources,
+      warnings: [],
+    } satisfies MemberLoungeResourceResult;
+  }
+
   return withAuthenticatedSession(
     input.memberLoungeUrl,
     input.email,
@@ -28,57 +52,6 @@ export async function crawlMemberLounge(
           events,
           warnings,
         };
-
-        // if (
-        //   session.userRole === 'admin' ||
-        //   session.userRole === 'super-admin'
-        // ) {
-        //   try {
-        //     const adminEvents = await crawlAdminEvents(
-        //       session.normalizedBaseUrl,
-        //       page,
-        //     );
-        //     result.events = [...result.events, ...adminEvents];
-        //   } catch {
-        //     warnings.push(
-        //       'Admin events page is not accessible for current user',
-        //     );
-        //   }
-        // }
-
-        return result;
-      }
-
-      if (input.crawlKind === 'resource') {
-        const resources = await crawlResources(
-          session.normalizedBaseUrl,
-          page,
-          input.instructions,
-        );
-        const result: MemberLoungeResourceResult = {
-          memberLoungeUrl: session.normalizedBaseUrl,
-          crawlKind: 'resource',
-          resources,
-          warnings,
-        };
-
-        // if (
-        //   session.userRole === 'admin' ||
-        //   session.userRole === 'super-admin'
-        // ) {
-        //   try {
-        //     const adminResources = await crawlAdminResources(
-        //       session.normalizedBaseUrl,
-        //       page,
-        //       input.instructions,
-        //     );
-        //     result.resources = [...result.resources, ...adminResources];
-        //   } catch {
-        //     warnings.push(
-        //       'Admin resources page is not accessible for current user',
-        //     );
-        //   }
-        // }
 
         return result;
       }

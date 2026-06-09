@@ -1,6 +1,6 @@
-import type { Page } from 'puppeteer';
 import type { MemberLoungeResource } from '../../../types.js';
 import { buildMarkdownByFilename } from './member-lounge.files.js';
+import { logger } from '../../../utils/logger.js';
 
 interface ApiBanner {
   url: string;
@@ -37,60 +37,109 @@ function normalizeFileType(url: string): 'pdf' | 'docx' | 'other' {
   return 'other';
 }
 
+interface FetchPageResult {
+  resources: ApiResource[];
+  lastRawId: string | null;
+}
+
 async function fetchResourcePage(
-  page: Page,
   url: string,
-): Promise<ApiResource[]> {
-  return page.evaluate(async (apiUrl: string) => {
-    const res = await fetch(apiUrl, { credentials: 'include' });
-    if (!res.ok) return [];
-    const data = (await res.json()) as unknown;
+  authToken: string,
+): Promise<FetchPageResult> {
+  let data: unknown;
 
-    console.log(`👉👉👉 Fetched data from ${apiUrl}:`, data);
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
 
-    // Handle array wrapper: [{ resources: [...], ... }]
-    if (Array.isArray(data)) {
-      if (
-        data.length > 0 &&
-        Array.isArray((data[0] as Record<string, unknown>)['resources'])
-      ) {
-        return (data[0] as Record<string, unknown>)['resources'] as unknown[];
+    if (!res.ok) {
+      logger.warn(`fetchResourcePage failed for ${url}: HTTP ${res.status} ${res.statusText}`);
+      return { resources: [], lastRawId: null };
+    }
+
+    data = await res.json();
+  } catch (err) {
+    logger.warn(`fetchResourcePage error for ${url}: ${(err as Error).message}`);
+    return { resources: [], lastRawId: null };
+  }
+
+  console.log(
+    `👉 fetchResourcePage ${url} raw data:`,
+    JSON.stringify(data).slice(0, 500),
+  );
+
+  if (Array.isArray(data)) {
+    console.log(`Data`, JSON.stringify(data, null, 2));
+
+    data.forEach((item, index) => {
+      if (Array.isArray(item.resources)) {
+        console.log(`✨✨
+            ✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨ Object ${index}: ${item.resources.length}`);
       }
-      return data;
-    }
+    });
 
-    if (data && typeof data === 'object') {
-      const obj = data as Record<string, unknown>;
-      const list = obj['resources'] ?? obj['data'];
-      if (Array.isArray(list)) return list;
-    }
+    if (
+      data.length > 0 &&
+      data.some(
+        (item) =>
+          item &&
+          typeof item === 'object' &&
+          Array.isArray((item as Record<string, unknown>)['resources']),
+      )
+    ) {
+      console.log(
+        `Data is array of objects with 'resources' array, extracting...`,
+      );
 
-    return [];
-  }, url);
+      const categories = data as Record<string, unknown>[];
+      const resources = categories.flatMap((item) => {
+        const r = item['resources'];
+        return Array.isArray(r) ? (r as ApiResource[]) : [];
+      });
+      const lastRawId =
+        (categories[categories.length - 1]['_id'] as string) ?? null;
+      return { resources, lastRawId };
+    }
+    const resources = data as ApiResource[];
+    const lastRawId =
+      resources.length > 0 ? resources[resources.length - 1]._id : null;
+    return { resources, lastRawId };
+  }
+
+  console.log(
+    `⚠️ fetchResourcePage ${url}: unrecognized shape`,
+    JSON.stringify(data).slice(0, 300),
+  );
+  return { resources: [], lastRawId: null };
 }
 
 async function fetchAllFromApi(
-  page: Page,
   baseUrl: string,
   apiPath: string,
+  authToken: string,
 ): Promise<ApiResource[]> {
   const all: ApiResource[] = [];
   let after = '-1';
 
   while (true) {
     const pageUrl = `${baseUrl}${apiPath}?after=${after}`;
-    console.log(`✨✨✨ Fetching resources from: ${pageUrl}`);
 
-    const batch = await fetchResourcePage(page, pageUrl);
+    console.log(`🚀 Fetching resources from API: ${pageUrl}`);
+
+    const { resources: batch, lastRawId } = await fetchResourcePage(
+      pageUrl,
+      authToken,
+    );
 
     console.log(
       `🔥🔥🔥 Fetched ${batch.length} resources from ${pageUrl}`,
       batch.map((r) => r._id),
     );
 
-    if (!batch.length) break;
+    if (!batch.length || !lastRawId || lastRawId === after) break;
     all.push(...batch);
-    after = batch[batch.length - 1]._id;
+    after = lastRawId;
   }
 
   console.log(
@@ -104,7 +153,7 @@ async function buildResourceEntry(
   baseUrl: string,
   resource: ApiResource,
   isPurchased: boolean,
-  page: Page,
+  authToken: string,
   instructions?: string,
 ): Promise<MemberLoungeResource> {
   const details = resource.postDetails;
@@ -116,7 +165,7 @@ async function buildResourceEntry(
   }));
 
   const fileMarkdownByName = await buildMarkdownByFilename(
-    page,
+    authToken,
     downloadFiles,
     instructions,
   );
@@ -151,25 +200,16 @@ async function buildResourceEntry(
 
 export async function crawlResources(
   baseUrl: string,
-  page: Page,
+  authToken: string,
   instructions?: string,
 ): Promise<MemberLoungeResource[]> {
   const allResources = await fetchAllFromApi(
-    page,
     baseUrl,
     '/api/post/resources/gallery/page',
-  );
-
-  console.log(
-    `🔥🔥🔥 Fetched ${allResources.length} total resources from gallery endpoint`,
+    authToken,
   );
 
   const purchasedIds = new Set(allResources.map((r) => r._id));
-
-  console.log(
-    `🔍 Identified ${purchasedIds.size} purchased resources`,
-    Array.from(purchasedIds),
-  );
 
   const result: MemberLoungeResource[] = [];
 
@@ -179,7 +219,7 @@ export async function crawlResources(
         baseUrl,
         resource,
         purchasedIds.has(resource._id),
-        page,
+        authToken,
         instructions,
       ),
     );
@@ -192,20 +232,20 @@ export async function crawlResources(
 
 export async function crawlAdminResources(
   baseUrl: string,
-  page: Page,
+  authToken: string,
   instructions?: string,
 ): Promise<MemberLoungeResource[]> {
   const resources = await fetchAllFromApi(
-    page,
     baseUrl,
     '/api/post/resources/admin-resources/gallery/page',
+    authToken,
   );
 
   const result: MemberLoungeResource[] = [];
 
   for (const resource of resources) {
     result.push(
-      await buildResourceEntry(baseUrl, resource, false, page, instructions),
+      await buildResourceEntry(baseUrl, resource, false, authToken, instructions),
     );
   }
 

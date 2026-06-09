@@ -283,7 +283,9 @@ async function performLoginFlow(
     logger.info('Login successful — waiting for page to fully load');
     await waitForIdle(page, 10_000);
 
-    logger.info('Page loaded — waiting 5 seconds before visiting calendar');
+    logger.info(
+      'Page loaded — waiting 5 seconds before proceeding to ensure any post-login redirects or content loads are complete',
+    );
     await new Promise((resolve) => setTimeout(resolve, 5_000));
 
     try {
@@ -298,9 +300,16 @@ async function performLoginFlow(
       logger.info('Home page navigation failed — continuing');
     }
 
+    const authToken = (await page.evaluate(
+      "localStorage.getItem('auth_token')",
+    )) as string | null;
+
+    logger.info(`Auth token found in localStorage: ${!!authToken}`);
+
     return {
       success: true,
       message: 'Login successful',
+      authToken: authToken ?? undefined,
     };
   }
 

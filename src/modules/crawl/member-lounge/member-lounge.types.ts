@@ -8,6 +8,7 @@ import type {
 export interface MemberLoungeLoginResult {
   success: boolean;
   message: string;
+  authToken?: string;
 }
 
 export interface MemberLoungeCrawlInput {

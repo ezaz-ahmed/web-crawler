@@ -24,6 +24,12 @@ import {
 import { testMemberLoungeLogin } from './member-lounge/member-lounge.auth.js';
 import { crawlCsae } from './csae/csae.crawler.js';
 import { logger } from '../../utils/logger.js';
+import { redisConnection } from '../../plugins/redis.js';
+
+function mlAuthKey(memberLoungeUrl: string): string {
+  const parsed = new URL(memberLoungeUrl);
+  return `ml:auth:${parsed.protocol}//${parsed.host}`;
+}
 
 function handleValidationError(error: unknown, reply: FastifyReply): void {
   if (error instanceof z.ZodError) {
@@ -110,6 +116,23 @@ export async function createMemberLoungeCrawl(
       });
       return;
     }
+
+    if (!loginResult.authToken) {
+      reply.code(401).send({
+        error: 'Authentication Failed',
+        message: 'Login succeeded but auth_token not found in localStorage',
+        loginStatus: 'failed',
+      });
+      return;
+    }
+
+    step = 'store-token';
+    await redisConnection.set(
+      mlAuthKey(body.memberLoungeUrl),
+      loginResult.authToken,
+      'EX',
+      86400,
+    );
 
     step = 'enqueue';
     const enqueueResponse = await enqueueMemberLoungeCrawl(
