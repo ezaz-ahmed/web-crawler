@@ -37,15 +37,10 @@ function normalizeFileType(url: string): 'pdf' | 'docx' | 'other' {
   return 'other';
 }
 
-interface FetchPageResult {
-  resources: ApiResource[];
-  lastRawId: string | null;
-}
-
 async function fetchResourcePage(
   url: string,
   authToken: string,
-): Promise<FetchPageResult> {
+): Promise<ApiResource[]> {
   let data: unknown;
 
   try {
@@ -54,31 +49,21 @@ async function fetchResourcePage(
     });
 
     if (!res.ok) {
-      logger.warn(`fetchResourcePage failed for ${url}: HTTP ${res.status} ${res.statusText}`);
-      return { resources: [], lastRawId: null };
+      logger.warn(
+        `fetchResourcePage failed for ${url}: HTTP ${res.status} ${res.statusText}`,
+      );
+      return [];
     }
 
     data = await res.json();
   } catch (err) {
-    logger.warn(`fetchResourcePage error for ${url}: ${(err as Error).message}`);
-    return { resources: [], lastRawId: null };
+    logger.warn(
+      `fetchResourcePage error for ${url}: ${(err as Error).message}`,
+    );
+    return [];
   }
 
-  console.log(
-    `👉 fetchResourcePage ${url} raw data:`,
-    JSON.stringify(data).slice(0, 500),
-  );
-
   if (Array.isArray(data)) {
-    console.log(`Data`, JSON.stringify(data, null, 2));
-
-    data.forEach((item, index) => {
-      if (Array.isArray(item.resources)) {
-        console.log(`✨✨
-            ✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨ Object ${index}: ${item.resources.length}`);
-      }
-    });
-
     if (
       data.length > 0 &&
       data.some(
@@ -88,30 +73,19 @@ async function fetchResourcePage(
           Array.isArray((item as Record<string, unknown>)['resources']),
       )
     ) {
-      console.log(
-        `Data is array of objects with 'resources' array, extracting...`,
-      );
-
       const categories = data as Record<string, unknown>[];
-      const resources = categories.flatMap((item) => {
+      return categories.flatMap((item) => {
         const r = item['resources'];
         return Array.isArray(r) ? (r as ApiResource[]) : [];
       });
-      const lastRawId =
-        (categories[categories.length - 1]['_id'] as string) ?? null;
-      return { resources, lastRawId };
     }
-    const resources = data as ApiResource[];
-    const lastRawId =
-      resources.length > 0 ? resources[resources.length - 1]._id : null;
-    return { resources, lastRawId };
+
+    console.log(`Fetched ${data.length} resources from ${url}`);
+
+    return data as ApiResource[];
   }
 
-  console.log(
-    `⚠️ fetchResourcePage ${url}: unrecognized shape`,
-    JSON.stringify(data).slice(0, 300),
-  );
-  return { resources: [], lastRawId: null };
+  return [];
 }
 
 async function fetchAllFromApi(
@@ -120,31 +94,30 @@ async function fetchAllFromApi(
   authToken: string,
 ): Promise<ApiResource[]> {
   const all: ApiResource[] = [];
-  let after = '-1';
+  const seen = new Set<string>();
+  let page = -1;
 
   while (true) {
-    const pageUrl = `${baseUrl}${apiPath}?after=${after}`;
+    const pageUrl = `${baseUrl}${apiPath}?after=${page}`;
 
-    console.log(`🚀 Fetching resources from API: ${pageUrl}`);
+    console.log(`📖 Fetching resource page: ${pageUrl}`);
 
-    const { resources: batch, lastRawId } = await fetchResourcePage(
-      pageUrl,
-      authToken,
-    );
+    const batch = await fetchResourcePage(pageUrl, authToken);
+    console.log(`📖 Fetched ${batch.length} resources from page ${page}`);
+    if (!batch.length) break;
 
-    console.log(
-      `🔥🔥🔥 Fetched ${batch.length} resources from ${pageUrl}`,
-      batch.map((r) => r._id),
-    );
+    let addedAny = false;
+    for (const resource of batch) {
+      if (!seen.has(resource._id)) {
+        seen.add(resource._id);
+        all.push(resource);
+        addedAny = true;
+      }
+    }
 
-    if (!batch.length || !lastRawId || lastRawId === after) break;
-    all.push(...batch);
-    after = lastRawId;
+    if (!addedAny) break;
+    page++;
   }
-
-  console.log(
-    `✅ Completed fetching all resources from ${apiPath}. Total: ${all.length}`,
-  );
 
   return all;
 }
@@ -153,7 +126,6 @@ async function buildResourceEntry(
   baseUrl: string,
   resource: ApiResource,
   isPurchased: boolean,
-  authToken: string,
   instructions?: string,
 ): Promise<MemberLoungeResource> {
   const details = resource.postDetails;
@@ -165,7 +137,6 @@ async function buildResourceEntry(
   }));
 
   const fileMarkdownByName = await buildMarkdownByFilename(
-    authToken,
     downloadFiles,
     instructions,
   );
@@ -219,33 +190,8 @@ export async function crawlResources(
         baseUrl,
         resource,
         purchasedIds.has(resource._id),
-        authToken,
         instructions,
       ),
-    );
-  }
-
-  console.log(`✅ Built resource entries with file markdown`, result);
-
-  return result;
-}
-
-export async function crawlAdminResources(
-  baseUrl: string,
-  authToken: string,
-  instructions?: string,
-): Promise<MemberLoungeResource[]> {
-  const resources = await fetchAllFromApi(
-    baseUrl,
-    '/api/post/resources/admin-resources/gallery/page',
-    authToken,
-  );
-
-  const result: MemberLoungeResource[] = [];
-
-  for (const resource of resources) {
-    result.push(
-      await buildResourceEntry(baseUrl, resource, false, authToken, instructions),
     );
   }
 

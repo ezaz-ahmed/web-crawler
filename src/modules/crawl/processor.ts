@@ -6,20 +6,55 @@ const openai = new OpenAI({
   apiKey: config.openai.apiKey,
 });
 
-const MAX_CONTENT_LENGTH = 100000;
+const CHUNK_SIZE = 15000;
 
-function truncateContent(content: string, maxLength: number): string {
-  if (content.length <= maxLength) {
-    return content;
+function splitIntoChunks(text: string, maxLength: number): string[] {
+  const chunks: string[] = [];
+
+  let start = 0;
+
+  while (start < text.length) {
+    let end = start + maxLength;
+
+    if (end < text.length) {
+      const lastParagraph = text.lastIndexOf('\n\n', end);
+
+      if (lastParagraph > start) {
+        end = lastParagraph;
+      }
+    }
+
+    chunks.push(text.slice(start, end).trim());
+    start = end;
   }
 
-  console.warn(
-    `Content truncated from ${content.length} to ${maxLength} chars`,
-  );
+  return chunks;
+}
 
-  return (
-    content.substring(0, maxLength) + '\n\n[Content truncated due to length...]'
-  );
+async function convertChunkToMarkdown(
+  content: string,
+  title: string,
+  url: string,
+  instructions?: string,
+): Promise<string> {
+  const systemPrompt = mergeInstructions(instructions);
+  const userMessage = createUserMessage(title, content, url);
+
+  const completion = await openai.chat.completions.create({
+    model: config.openai.model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userMessage },
+    ],
+  });
+
+  const markdown = completion.choices[0]?.message?.content;
+
+  if (!markdown) {
+    throw new Error('No content returned from OpenAI');
+  }
+
+  return markdown.trim();
 }
 
 export async function convertToMarkdown(
@@ -30,57 +65,61 @@ export async function convertToMarkdown(
 ): Promise<string> {
   console.log(`Converting to markdown with AI: ${title}`);
 
-  const truncatedContent = truncateContent(content, MAX_CONTENT_LENGTH);
-
-  if (!truncatedContent.trim()) {
+  if (!content.trim()) {
     throw new Error('No extractable page content found for AI conversion');
   }
 
-  const systemPrompt = mergeInstructions(instructions);
-  const userMessage = createUserMessage(title, truncatedContent, url);
+  const chunks = splitIntoChunks(content, CHUNK_SIZE);
 
-  let retries = 0;
-  const maxRetries = 3;
-  let lastError: Error | null = null;
+  console.log(
+    `Document split into ${chunks.length} chunk(s) (${content.length} chars)`,
+  );
 
-  while (retries < maxRetries) {
-    try {
-      const completion = await openai.chat.completions.create({
-        model: config.openai.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage },
-        ],
-      });
+  const markdownParts: string[] = [];
 
-      const markdown = completion.choices[0]?.message?.content;
+  for (let i = 0; i < chunks.length; i++) {
+    console.log(
+      `Processing chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars)`,
+    );
 
-      if (!markdown) {
-        throw new Error('No content returned from OpenAI');
-      }
+    let retries = 0;
+    const maxRetries = 3;
 
-      console.log(`✓ AI conversion complete (${markdown.length} chars)`);
-      return markdown.trim();
-    } catch (error) {
-      lastError = error as Error;
-
-      if (error instanceof OpenAI.APIError && error.status === 429) {
-        retries++;
-        const backoffDelay = Math.pow(2, retries) * 1000;
-        console.warn(
-          `Rate limited by OpenAI, retrying in ${backoffDelay}ms (attempt ${retries}/${maxRetries})`,
+    while (retries < maxRetries) {
+      try {
+        const markdown = await convertChunkToMarkdown(
+          chunks[i],
+          title,
+          url,
+          instructions,
         );
-        await new Promise((resolve) => setTimeout(resolve, backoffDelay));
-        continue;
-      }
 
-      throw error;
+        markdownParts.push(markdown);
+
+        break;
+      } catch (error) {
+        if (error instanceof OpenAI.APIError && error.status === 429) {
+          retries++;
+
+          const delay = Math.pow(2, retries) * 1000;
+
+          console.warn(`Rate limited. Retrying chunk ${i + 1} in ${delay}ms`);
+
+          await new Promise((resolve) => setTimeout(resolve, delay));
+
+          continue;
+        }
+
+        throw error;
+      }
     }
   }
 
-  throw new Error(
-    `OpenAI conversion failed after ${maxRetries} retries: ${lastError?.message}`,
-  );
+  const combinedMarkdown = markdownParts.join('\n\n---\n\n');
+
+  console.log(`✓ AI conversion complete (${combinedMarkdown.length} chars)`);
+
+  return combinedMarkdown;
 }
 
 export async function convertPagesToMarkdown(

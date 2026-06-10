@@ -229,7 +229,7 @@ export async function getCrawlStatusById(
   reply: FastifyReply,
 ): Promise<void> {
   const { jobId } = request.params;
-  const response = getCrawlStatus(jobId);
+  const response = await getCrawlStatus(jobId);
 
   if (!response) {
     reply.code(404).send({

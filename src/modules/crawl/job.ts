@@ -6,139 +6,81 @@ import type {
   MultiPageResult,
   SingleUrlResult,
 } from '../../types.js';
+import { redisConnection } from '../../plugins/redis.js';
 
-class JobStateManager {
-  private jobs: Map<string, JobState> = new Map();
+const JOB_TTL = 24 * 60 * 60;
+const KEY = (id: string) => `job:${id}`;
 
-  createJob(jobId: string, type: CrawlType): JobState {
-    const state: JobState = {
-      jobId,
-      type,
-      status: 'queued',
-      createdAt: new Date(),
-    };
-
-    this.jobs.set(jobId, state);
-    console.log(`✓ Created job state for ${jobId}`);
-    return state;
-  }
-
-  updateJobStatus(jobId: string, status: JobStatus, error?: string): void {
-    const job = this.jobs.get(jobId);
-    if (!job) {
-      throw new Error(`Job ${jobId} not found`);
-    }
-
-    job.status = status;
-    if (error) {
-      job.error = error;
-    }
-
-    if (status === 'completed' || status === 'failed') {
-      job.completedAt = new Date();
-    }
-
-    this.jobs.set(jobId, job);
-    console.log(`✓ Updated job ${jobId} status to ${status}`);
-  }
-
-  updateJobProgress(jobId: string, progress: number): void {
-    const job = this.jobs.get(jobId);
-    if (!job) {
-      throw new Error(`Job ${jobId} not found`);
-    }
-
-    job.progress = Math.min(100, Math.max(0, progress));
-    this.jobs.set(jobId, job);
-  }
-
-  setJobResult(jobId: string, result: CrawlResult): void {
-    const job = this.jobs.get(jobId);
-    if (!job) {
-      throw new Error(`Job ${jobId} not found`);
-    }
-
-    job.result = result;
-    this.jobs.set(jobId, job);
-    console.log(`✓ Set result for job ${jobId}`);
-  }
-
-  getJobStatus(jobId: string): JobState | undefined {
-    return this.jobs.get(jobId);
-  }
-
-  cleanupOldJobs(maxAgeHours: number = 24): number {
-    const now = new Date();
-    const maxAge = maxAgeHours * 60 * 60 * 1000;
-    let deletedCount = 0;
-
-    for (const [jobId, job] of this.jobs.entries()) {
-      if (job.completedAt) {
-        const age = now.getTime() - job.completedAt.getTime();
-        if (age > maxAge) {
-          this.jobs.delete(jobId);
-          deletedCount++;
-        }
-      }
-    }
-
-    if (deletedCount > 0) {
-      console.log(`✓ Cleaned up ${deletedCount} old jobs`);
-    }
-
-    return deletedCount;
-  }
-
-  getStats() {
-    const jobs = Array.from(this.jobs.values());
-    return {
-      total: jobs.length,
-      queued: jobs.filter((j) => j.status === 'queued').length,
-      processing: jobs.filter((j) => j.status === 'processing').length,
-      completed: jobs.filter((j) => j.status === 'completed').length,
-      failed: jobs.filter((j) => j.status === 'failed').length,
-    };
-  }
+function serialize(state: JobState): string {
+  return JSON.stringify(state);
 }
 
-const jobStateManager = new JobStateManager();
-
-export function createJobState(jobId: string, type: CrawlType): JobState {
-  return jobStateManager.createJob(jobId, type);
+function deserialize(raw: string): JobState {
+  const obj = JSON.parse(raw);
+  obj.createdAt = new Date(obj.createdAt);
+  if (obj.completedAt) obj.completedAt = new Date(obj.completedAt);
+  return obj as JobState;
 }
 
-export function updateJobStatus(
+export async function createJobState(jobId: string, type: CrawlType): Promise<JobState> {
+  const state: JobState = {
+    jobId,
+    type,
+    status: 'queued',
+    createdAt: new Date(),
+  };
+  await redisConnection.set(KEY(jobId), serialize(state), 'EX', JOB_TTL);
+  return state;
+}
+
+export async function updateJobStatus(
   jobId: string,
   status: JobStatus,
   error?: string,
-): void {
-  jobStateManager.updateJobStatus(jobId, status, error);
+): Promise<void> {
+  const raw = await redisConnection.get(KEY(jobId));
+  if (!raw) throw new Error(`Job ${jobId} not found`);
+  const job = deserialize(raw);
+  job.status = status;
+  if (error) job.error = error;
+  if (status === 'completed' || status === 'failed') job.completedAt = new Date();
+  await redisConnection.set(KEY(jobId), serialize(job), 'EX', JOB_TTL);
 }
 
-export function updateJobProgress(jobId: string, progress: number): void {
-  jobStateManager.updateJobProgress(jobId, progress);
+export async function updateJobProgress(jobId: string, progress: number): Promise<void> {
+  const raw = await redisConnection.get(KEY(jobId));
+  if (!raw) throw new Error(`Job ${jobId} not found`);
+  const job = deserialize(raw);
+  job.progress = Math.min(100, Math.max(0, progress));
+  await redisConnection.set(KEY(jobId), serialize(job), 'EX', JOB_TTL);
 }
 
-export function setJobResult(
+export async function setJobResult(
   jobId: string,
   result: CrawlResult | SingleUrlResult | MultiPageResult,
-): void {
-  jobStateManager.setJobResult(jobId, result);
+): Promise<void> {
+  const raw = await redisConnection.get(KEY(jobId));
+  if (!raw) throw new Error(`Job ${jobId} not found`);
+  const job = deserialize(raw);
+  job.result = result as CrawlResult;
+  await redisConnection.set(KEY(jobId), serialize(job), 'EX', JOB_TTL);
 }
 
-export function getJobStatus(jobId: string): JobState | undefined {
-  return jobStateManager.getJobStatus(jobId);
+export async function getJobStatus(jobId: string): Promise<JobState | undefined> {
+  const raw = await redisConnection.get(KEY(jobId));
+  if (!raw) return undefined;
+  return deserialize(raw);
 }
 
-export function getJobStats() {
-  return jobStateManager.getStats();
-}
-
-if (typeof setInterval !== 'undefined') {
-  setInterval(
-    () => {
-      jobStateManager.cleanupOldJobs(24);
-    },
-    60 * 60 * 1000,
-  );
+export async function getJobStats(): Promise<object> {
+  const keys = await redisConnection.keys('job:*');
+  const raws = keys.length ? await redisConnection.mget(...keys) : [];
+  const states = raws.filter(Boolean).map((r) => deserialize(r!));
+  return {
+    total: states.length,
+    queued: states.filter((j) => j.status === 'queued').length,
+    processing: states.filter((j) => j.status === 'processing').length,
+    completed: states.filter((j) => j.status === 'completed').length,
+    failed: states.filter((j) => j.status === 'failed').length,
+  };
 }

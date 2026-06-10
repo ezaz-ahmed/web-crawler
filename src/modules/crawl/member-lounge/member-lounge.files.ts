@@ -17,7 +17,6 @@ function normalizeFileType(url: string): 'pdf' | 'docx' | 'other' {
 }
 
 export async function buildMarkdownByFilename(
-  authToken: string,
   files: Array<{ name: string; url: string }>,
   instructions?: string,
 ): Promise<Record<string, string>> {
@@ -26,16 +25,23 @@ export async function buildMarkdownByFilename(
   for (const file of files) {
     const fileType = normalizeFileType(file.url);
 
+    console.log(
+      `Processing file ${file.name} (${file.url}) as type ${fileType}`,
+    );
+
     if (fileType === 'other') {
       continue;
     }
 
     try {
-      const res = await fetch(file.url, {
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
+      const res = await fetch(file.url);
+
+      console.log(`Fetching file ${file.name} (${file.url})`);
 
       if (!res.ok) {
+        console.log(
+          `Failed to fetch file ${file.name} (${file.url}): HTTP ${res.status} ${res.statusText}`,
+        );
         throw new Error(`HTTP ${res.status} ${res.statusText}`);
       }
 

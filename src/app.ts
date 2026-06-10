@@ -30,7 +30,7 @@ app.get('/health', async (_request, reply) => {
     await redisConnection.ping();
 
     const stats = await getQueueStats();
-    const jobStats = getJobStats();
+    const jobStats = await getJobStats();
 
     return {
       status: 'healthy',

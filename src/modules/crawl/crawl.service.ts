@@ -51,7 +51,7 @@ export async function enqueueUrlCrawl(
 ): Promise<EnqueueResponse> {
   const jobId = nanoid();
 
-  createJobState(jobId, 'url');
+  await createJobState(jobId, 'url');
 
   await enqueueCrawlJob(
     {
@@ -94,7 +94,7 @@ export async function enqueueWebsiteCrawl(
 ): Promise<EnqueueResponse> {
   const jobId = nanoid();
 
-  createJobState(jobId, 'website');
+  await createJobState(jobId, 'website');
 
   await enqueueCrawlJob(
     {
@@ -139,7 +139,7 @@ export async function enqueueSitemapCrawl(
 ): Promise<EnqueueResponse> {
   const jobId = nanoid();
 
-  createJobState(jobId, 'sitemap');
+  await createJobState(jobId, 'sitemap');
 
   await enqueueCrawlJob(
     {
@@ -182,7 +182,7 @@ export async function enqueueMemberLoungeCrawl(
 ): Promise<EnqueueResponse> {
   const jobId = nanoid();
 
-  createJobState(jobId, 'member-lounge');
+  await createJobState(jobId, 'member-lounge');
 
   await enqueueCrawlJob(
     {
@@ -233,7 +233,7 @@ export async function enqueueCsaeCrawl(
 
   const jobId = nanoid();
 
-  createJobState(jobId, 'csae');
+  await createJobState(jobId, 'csae');
 
   await enqueueCrawlJob(
     {
@@ -273,8 +273,8 @@ export async function enqueueCsaeCrawl(
   };
 }
 
-export function getCrawlStatus(jobId: string): StatusResponse | null {
-  const jobState = getJobStatus(jobId);
+export async function getCrawlStatus(jobId: string): Promise<StatusResponse | null> {
+  const jobState = await getJobStatus(jobId);
 
   if (!jobState) {
     return null;

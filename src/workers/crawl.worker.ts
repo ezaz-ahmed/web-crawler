@@ -55,8 +55,8 @@ async function processUrlJob(jobData: UrlJobData): Promise<void> {
     fetchedAt: pageResult.fetchedAt,
   };
 
-  setJobResult(jobData.jobId, result);
-  updateJobStatus(jobData.jobId, 'completed');
+  await setJobResult(jobData.jobId, result);
+  await updateJobStatus(jobData.jobId, 'completed');
   dispatchWebhook(
     jobData.callbackUrl,
     {
@@ -83,7 +83,7 @@ async function processWebsiteJob(jobData: WebsiteJobData): Promise<void> {
     jobData.excludePatterns,
     (current, total) => {
       const progress = Math.floor((current / total) * 50);
-      updateJobProgress(jobData.jobId, progress);
+      void updateJobProgress(jobData.jobId, progress);
 
       const bucket = Math.floor(progress / 5) * 5;
       if (bucket > lastReportedProgress) {
@@ -119,7 +119,7 @@ async function processWebsiteJob(jobData: WebsiteJobData): Promise<void> {
     jobData.instructions,
     (current, total) => {
       const progress = 50 + Math.floor((current / total) * 40);
-      updateJobProgress(jobData.jobId, progress);
+      void updateJobProgress(jobData.jobId, progress);
 
       const bucket = Math.floor(progress / 5) * 5;
       if (bucket > lastReportedProgress) {
@@ -140,7 +140,7 @@ async function processWebsiteJob(jobData: WebsiteJobData): Promise<void> {
     },
   );
 
-  updateJobProgress(jobData.jobId, 90);
+  await updateJobProgress(jobData.jobId, 90);
 
   const result: MultiPageResult = {
     rootUrl: jobData.url,
@@ -152,9 +152,9 @@ async function processWebsiteJob(jobData: WebsiteJobData): Promise<void> {
     })),
   };
 
-  setJobResult(jobData.jobId, result);
-  updateJobProgress(jobData.jobId, 100);
-  updateJobStatus(jobData.jobId, 'completed');
+  await setJobResult(jobData.jobId, result);
+  await updateJobProgress(jobData.jobId, 100);
+  await updateJobStatus(jobData.jobId, 'completed');
   dispatchWebhook(
     jobData.callbackUrl,
     {
@@ -187,7 +187,7 @@ async function processSitemapJob(jobData: SitemapJobData): Promise<void> {
   for (const url of urls) {
     const childJobId = nanoid();
 
-    createJobState(childJobId, 'url');
+    await createJobState(childJobId, 'url');
 
     await enqueueCrawlJob(
       {
@@ -215,8 +215,8 @@ async function processSitemapJob(jobData: SitemapJobData): Promise<void> {
     })),
   };
 
-  setJobResult(jobData.jobId, result);
-  updateJobStatus(jobData.jobId, 'completed');
+  await setJobResult(jobData.jobId, result);
+  await updateJobStatus(jobData.jobId, 'completed');
   dispatchWebhook(
     jobData.callbackUrl,
     {
@@ -239,7 +239,7 @@ async function processMemberLoungeJob(
     `Processing member lounge job: ${jobData.jobId} url=${jobData.memberLoungeUrl} kind=${jobData.crawlKind}`,
   );
 
-  updateJobProgress(jobData.jobId, 10);
+  await updateJobProgress(jobData.jobId, 10);
   dispatchWebhook(
     jobData.callbackUrl,
     {
@@ -261,11 +261,11 @@ async function processMemberLoungeJob(
     instructions: jobData.instructions,
   });
 
-  updateJobProgress(jobData.jobId, 90);
+  await updateJobProgress(jobData.jobId, 90);
 
-  setJobResult(jobData.jobId, result);
-  updateJobProgress(jobData.jobId, 100);
-  updateJobStatus(jobData.jobId, 'completed');
+  await setJobResult(jobData.jobId, result);
+  await updateJobProgress(jobData.jobId, 100);
+  await updateJobStatus(jobData.jobId, 'completed');
 
   dispatchWebhook(
     jobData.callbackUrl,
@@ -284,7 +284,7 @@ async function processMemberLoungeJob(
 async function processCsaeJob(jobData: CsaeJobData): Promise<void> {
   logger.info(`Processing CSAE job: ${jobData.jobId}`);
 
-  updateJobProgress(jobData.jobId, 10);
+  await updateJobProgress(jobData.jobId, 10);
   dispatchWebhook(
     jobData.callbackUrl,
     {
@@ -306,10 +306,10 @@ async function processCsaeJob(jobData: CsaeJobData): Promise<void> {
     instructions: jobData.instructions,
   });
 
-  updateJobProgress(jobData.jobId, 90);
-  setJobResult(jobData.jobId, result);
-  updateJobProgress(jobData.jobId, 100);
-  updateJobStatus(jobData.jobId, 'completed');
+  await updateJobProgress(jobData.jobId, 90);
+  await setJobResult(jobData.jobId, result);
+  await updateJobProgress(jobData.jobId, 100);
+  await updateJobStatus(jobData.jobId, 'completed');
 
   dispatchWebhook(
     jobData.callbackUrl,
@@ -332,7 +332,7 @@ async function processJob(job: Job<CrawlJobData>): Promise<void> {
   logger.info(`Starting job: ${jobData.jobId} (type: ${jobData.type})`);
   logger.info(`========================================`);
 
-  updateJobStatus(jobData.jobId, 'processing');
+  await updateJobStatus(jobData.jobId, 'processing');
   dispatchWebhook(
     jobData.callbackUrl,
     {
@@ -398,7 +398,7 @@ async function processJob(job: Job<CrawlJobData>): Promise<void> {
 
     logger.error(jobContext, `✗ Job failed: ${jobData.jobId} type=${jobData.type}: ${errMsg}`);
 
-    updateJobStatus(jobData.jobId, 'failed', errMsg);
+    await updateJobStatus(jobData.jobId, 'failed', errMsg);
     dispatchWebhook(
       jobData.callbackUrl,
       {
@@ -424,18 +424,24 @@ export function startWorkers(): void {
     connection: redisConnection,
     concurrency: 2,
     skipVersionCheck: true,
+    lockDuration: 5 * 60 * 1000, // 5 min
+    lockRenewTime: 60 * 1000,    // renew every 1 min
   });
 
   const mediumWorker = new Worker<CrawlJobData>('crawl-medium', processJob, {
     connection: redisConnection,
     concurrency: 2,
     skipVersionCheck: true,
+    lockDuration: 10 * 60 * 1000, // 10 min for large AI conversions
+    lockRenewTime: 2 * 60 * 1000, // renew every 2 min
   });
 
   const lowWorker = new Worker<CrawlJobData>('crawl-low', processJob, {
     connection: redisConnection,
     concurrency: 1,
     skipVersionCheck: true,
+    lockDuration: 10 * 60 * 1000,
+    lockRenewTime: 2 * 60 * 1000,
   });
 
   workers.push(highWorker, mediumWorker, lowWorker);
