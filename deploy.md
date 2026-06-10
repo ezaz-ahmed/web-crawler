@@ -16,17 +16,9 @@ App and worker share the same Docker image. Worker is a separate process (`node 
 
 ## Production Docker Image
 
-### Known Issue: Missing CMD
+### CMD
 
-The current `Dockerfile` has no `CMD` instruction. The `docker-compose.yml` provides commands via `command:`. This works fine with compose but standalone `docker run` requires an explicit command:
-
-```bash
-# app server
-docker run myimage node dist/index.js
-
-# worker
-docker run myimage node dist/worker.js
-```
+`Dockerfile` defaults to `node dist/index.js`. `docker-compose.yml` overrides via `command:` per service.
 
 ### Build the Image
 
@@ -96,6 +88,120 @@ RATE_LIMIT_PER_DOMAIN=1000
 ```
 
 **Never commit `.env` with real keys.** Pass via secrets manager or CI/CD env injection.
+
+---
+
+## Option F: Coolify (Recommended — Docker Compose + Auto CI/CD)
+
+Coolify deploys all 3 services (app + worker + redis) from `docker-compose.yml` directly. Auto-deploys on every push to `main` via GitHub webhook — no GitHub Actions needed.
+
+### Prerequisites
+
+- Coolify instance running (self-hosted or Coolify Cloud)
+- Repo pushed to GitHub
+
+---
+
+### Step 1 — Create resource in Coolify
+
+1. Coolify dashboard → **New Project** (or pick existing)
+2. **+ Add New Resource** → **Docker Compose**
+3. Source: **GitHub** → authorize via **GitHub App** (allows Coolify to watch the repo)
+4. Select repo: `web-me`, branch: `main`
+5. Coolify auto-detects `docker-compose.yml` — confirm path is correct
+
+---
+
+### Step 2 — Set environment variables
+
+In resource **Environment Variables** tab, add all values from `.env.example`.
+
+Coolify writes these to a `.env` file on the server. The `env_file: .env` in `docker-compose.yml` picks them up automatically.
+
+**Minimum required:**
+
+```env
+PORT=5000
+NODE_ENV=production
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o-mini
+ALLOWED_API_KEYS=prod-key-abc:whsec_abc123
+USER_AGENT=WebCrawlerBot/1.0
+MAX_CONCURRENT_REQUESTS=5
+REQUEST_TIMEOUT=30000
+RATE_LIMIT_PER_DOMAIN=1000
+```
+
+> `REDIS_URL` is already hardcoded to `redis://redis:6379` in `docker-compose.yml` — no need to set it manually. Redis runs as a sidecar in the same compose stack.
+
+---
+
+### Step 3 — Deploy once manually
+
+Click **Deploy**. Coolify will:
+
+1. Clone repo from GitHub
+2. Build Docker image from `Dockerfile`
+3. Spin up all 3 services: `redis`, `app`, `worker`
+
+Check **Logs** tab to confirm all services started.
+
+---
+
+### Step 4 — Enable auto CI/CD
+
+1. Resource **Settings** → toggle **"Auto Deploy"** → **ON**
+2. Coolify shows a webhook URL:
+   ```
+   https://your-coolify.com/webhooks/source/github/events/manual?token=xxxxx
+   ```
+3. Copy that URL
+
+---
+
+### Step 5 — Wire GitHub webhook
+
+GitHub repo → **Settings** → **Webhooks** → **Add webhook**:
+
+| Field | Value |
+|-------|-------|
+| Payload URL | Coolify webhook URL from Step 4 |
+| Content type | `application/json` |
+| Secret | *(leave empty)* |
+| Events | **Just the push event** |
+| Active | ✓ |
+
+Click **Add webhook**.
+
+---
+
+### How it works after setup
+
+```
+git push origin main
+  → GitHub fires webhook to Coolify
+  → Coolify pulls latest main
+  → Builds new Docker image
+  → Replaces containers (app + worker)
+  → Redis data preserved via volume
+```
+
+---
+
+### Optional: health check
+
+Add to `app` service in `docker-compose.yml` so Coolify knows when app is ready:
+
+```yaml
+app:
+  healthcheck:
+    test: ["CMD", "wget", "-qO-", "http://localhost:5000/health"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+```
+
+Requires a `/health` route in the Fastify app returning `200`.
 
 ---
 
